@@ -6,98 +6,6 @@
     <title>理財記帳簿</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'budget-planner';
-
-        // 狀態管理
-        window.state = {
-            user: null,
-            records: [],
-            accounts: [],
-            fixedExpenses: [],
-            salary: 40000,
-            savingsGoal: 10000,
-            loading: true
-        };
-
-        // 初始化驗證 (依照 RULE 3)
-        const initAuth = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (err) {
-                console.error("Auth failed", err);
-                // 如果驗證失敗，5秒後強行解除載入狀態，讓用戶至少能看到介面
-                setTimeout(() => {
-                    if (window.state.loading) {
-                        window.state.loading = false;
-                        window.updateUI();
-                    }
-                }, 5000);
-            }
-        };
-
-        onAuthStateChanged(auth, (user) => {
-            window.state.user = user;
-            if (user) {
-                setupRealtimeSync(user.uid);
-            }
-        });
-
-        // 設置雲端同步
-        function setupRealtimeSync(uid) {
-            const userDoc = doc(db, 'artifacts', appId, 'users', uid, 'data', 'mainState');
-            
-            // 使用 onSnapshot 並加入錯誤處理
-            const unsubscribe = onSnapshot(userDoc, (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    window.state.records = data.records || [];
-                    window.state.accounts = data.accounts || [];
-                    window.state.fixedExpenses = data.fixedExpenses || [];
-                    window.state.salary = data.salary || 40000;
-                    window.state.savingsGoal = data.savingsGoal || 10000;
-                }
-                window.state.loading = false;
-                window.updateUI();
-            }, (error) => {
-                console.error("Sync error:", error);
-                window.state.loading = false;
-                window.updateUI(); // 即使出錯也嘗試更新 UI 顯示
-            });
-        }
-
-        // 儲存至雲端
-        window.saveToCloud = async () => {
-            if (!window.state.user) return;
-            const userDoc = doc(db, 'artifacts', appId, 'users', window.state.user.uid, 'data', 'mainState');
-            try {
-                await setDoc(userDoc, {
-                    records: window.state.records,
-                    accounts: window.state.accounts,
-                    fixedExpenses: window.state.fixedExpenses,
-                    salary: window.state.salary,
-                    savingsGoal: window.state.savingsGoal,
-                    lastUpdated: Date.now()
-                });
-            } catch (err) {
-                console.error("Save failed", err);
-            }
-        };
-
-        initAuth();
-    </script>
     <style>
         body {
             font-family: 'Noto Sans TC', sans-serif;
@@ -144,30 +52,13 @@
             border-bottom: 2px solid #b8a390;
             color: #b8a390;
         }
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: #fcfaf7;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
     </style>
 </head>
 <body class="p-4 md:p-8">
-    <div id="loading" class="loading-overlay">
-        <div class="flex flex-col items-center gap-4">
-            <div class="text-stone-400 animate-pulse font-medium">資料同步中...</div>
-            <button onclick="document.getElementById('loading').classList.add('hidden')" class="text-[10px] text-stone-300 underline">等太久了？直接進入</button>
-        </div>
-    </div>
-
     <div class="max-w-6xl mx-auto">
         <header class="text-center mb-8">
             <h1 class="text-2xl font-bold tracking-widest text-stone-700 mb-1">理財記帳簿</h1>
-            <p class="text-stone-400 text-sm italic">Cloud Sync Enabled</p>
-            <div id="user-display" class="text-[10px] text-stone-300 mt-2 font-mono"></div>
+            <p class="text-stone-400 text-sm italic">Local Storage Mode (快速離線存取)</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -222,7 +113,7 @@
                 <div class="milktea-gradient text-white rounded-3xl p-10 shadow-lg text-center">
                     <h2 class="text-sm font-medium opacity-80 mb-3 tracking-widest uppercase">本月剩餘可動用金額 (不含儲蓄)</h2>
                     <div class="text-7xl font-black tracking-tighter" id="monthly-total">$0</div>
-                    <p class="text-[10px] opacity-50 mt-6 italic">所有裝置即時同步：已扣除儲蓄目標與固定支出</p>
+                    <p class="text-[10px] opacity-50 mt-6 italic">資料儲存於本地瀏覽器，開啟即用</p>
                 </div>
             </div>
 
@@ -281,6 +172,43 @@
     </div>
 
     <script>
+        // 狀態管理 - 改為從 LocalStorage 讀取
+        const STORAGE_KEY = 'BUDGET_PLANNER_DATA';
+        
+        window.state = {
+            records: [],
+            accounts: [],
+            fixedExpenses: [],
+            salary: 40000,
+            savingsGoal: 10000
+        };
+
+        // 初始化：載入資料
+        function loadData() {
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (savedData) {
+                try {
+                    const parsed = JSON.parse(savedData);
+                    window.state = { ...window.state, ...parsed };
+                } catch (e) {
+                    console.error("Failed to parse saved data", e);
+                }
+            }
+            updateUI();
+        }
+
+        // 儲存資料到本地
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                records: window.state.records,
+                accounts: window.state.accounts,
+                fixedExpenses: window.state.fixedExpenses,
+                salary: window.state.salary,
+                savingsGoal: window.state.savingsGoal
+            }));
+            updateUI();
+        }
+
         let currentTab = 'expense';
 
         function toggleModal(id) {
@@ -298,7 +226,7 @@
         function updateSalaryGoal() {
             window.state.salary = parseFloat(document.getElementById('salary').value) || 0;
             window.state.savingsGoal = parseFloat(document.getElementById('savings-goal').value) || 0;
-            window.saveToCloud();
+            saveData();
         }
 
         function addFixedExpense() {
@@ -308,13 +236,13 @@
                 window.state.fixedExpenses.push({ id: Date.now(), name, amount: val });
                 document.getElementById('fix-exp-name').value = '';
                 document.getElementById('fix-exp-val').value = '';
-                window.saveToCloud();
+                saveData();
             }
         }
 
         function removeFixedExpense(id) {
             window.state.fixedExpenses = window.state.fixedExpenses.filter(f => f.id !== id);
-            window.saveToCloud();
+            saveData();
         }
 
         function addAccount() {
@@ -325,7 +253,7 @@
                 document.getElementById('new-acc-name').value = '';
                 document.getElementById('new-acc-balance').value = '';
                 toggleModal('account-modal');
-                window.saveToCloud();
+                saveData();
             }
         }
 
@@ -333,24 +261,18 @@
             const idx = window.state.accounts.findIndex(a => a.id === id);
             if (idx !== -1) {
                 window.state.accounts[idx].balance = parseFloat(newBalance) || 0;
-                window.saveToCloud();
+                saveData();
             }
         }
 
         function deleteAccount(id) {
             if (confirm('確定刪除？')) {
                 window.state.accounts = window.state.accounts.filter(a => a.id !== id);
-                window.saveToCloud();
+                saveData();
             }
         }
 
-        window.updateUI = function() {
-            if (window.state.loading) return;
-            document.getElementById('loading').classList.add('hidden');
-            if (window.state.user) {
-                document.getElementById('user-display').innerText = `USER ID: ${window.state.user.uid}`;
-            }
-
+        function updateUI() {
             document.getElementById('salary').value = window.state.salary;
             document.getElementById('savings-goal').value = window.state.savingsGoal;
 
@@ -415,7 +337,7 @@
 
             document.getElementById('monthly-total').innerText = `$${consumableRemaining.toLocaleString()}`;
             renderRecords();
-        };
+        }
 
         function addRecord(type) {
             const name = document.getElementById(type === 'expense' ? 'exp-name' : 'inc-name').value.trim();
@@ -446,7 +368,7 @@
 
             document.getElementById(type === 'expense' ? 'exp-name' : 'inc-name').value = '';
             document.getElementById(type === 'expense' ? 'exp-amount' : 'inc-amount').value = '';
-            window.saveToCloud();
+            saveData();
         }
 
         function renderRecords() {
@@ -474,9 +396,12 @@
                     window.state.accounts[accIdx].balance += (r.type === 'income' ? -r.amount : r.amount);
                 }
                 window.state.records = window.state.records.filter(r => r.id !== id);
-                window.saveToCloud();
+                saveData();
             }
         }
+
+        // 啟動程式
+        window.onload = loadData;
     </script>
 </body>
 </html>
