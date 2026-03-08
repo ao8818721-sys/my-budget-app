@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奶茶風理財助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #fcfaf7;
+            color: #5d5245;
+        }
+        .milktea-gradient {
+            background: linear-gradient(135deg, #dccabd 0%, #b8a390 100%);
+        }
+        .milktea-gradient-green {
+            background: linear-gradient(135deg, #c5d3c1 0%, #a4b69c 100%);
+        }
+        .jar-card {
+            transition: all 0.3s ease;
+            border: 1px solid #e5ddd3;
+        }
+        .jar-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px -5px rgba(184, 163, 144, 0.2);
+        }
+        .input-style {
+            background-color: #f3ede6;
+            border: 1px solid #e5ddd3;
+            border-radius: 12px;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .input-style:focus {
+            background-color: #fff;
+            border-color: #b8a390;
+            box-shadow: 0 0 0 3px rgba(184, 163, 144, 0.1);
+        }
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #dccabd;
+            border-radius: 10px;
+        }
+        .modal-bg {
+            background-color: rgba(93, 82, 69, 0.4);
+        }
+        .tab-active {
+            border-bottom: 2px solid #b8a390;
+            color: #b8a390;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-2xl font-bold tracking-widest text-stone-700 mb-1">六罐子理財計畫</h1>
+            <p class="text-stone-400 text-sm italic">Account, Sub-category & Income Managed</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- 左側：設定區 -->
+            <div class="lg:col-span-8">
+                
+                <!-- 帳戶資產總覽 -->
+                <div class="bg-white rounded-2xl p-6 mb-6 border border-stone-100 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xs font-bold text-stone-400 tracking-widest uppercase">帳戶資產管理</h3>
+                        <button onclick="toggleModal('account-modal')" class="text-[10px] bg-stone-100 text-stone-500 px-3 py-1 rounded-full hover:bg-stone-200 transition">+ 新增帳戶</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="accounts-container">
+                        <!-- JS 生成 -->
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-stone-50 flex justify-between items-center">
+                        <span class="text-xs text-stone-400 uppercase tracking-widest">總資產淨值</span>
+                        <span class="text-xl font-black text-stone-700" id="total-assets">$0</span>
+                    </div>
+                </div>
+
+                <!-- 自定義次分類管理 -->
+                <div class="bg-white rounded-2xl p-6 mb-6 border border-stone-100 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xs font-bold text-stone-400 tracking-widest uppercase">自定義次分類 (如: 早餐、晚餐)</h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="new-subcat-name" placeholder="分類名稱" class="text-[10px] p-1 input-style w-20">
+                            <button onclick="addSubCategory()" class="text-[10px] bg-stone-100 text-stone-500 px-3 py-1 rounded-full hover:bg-stone-200 transition">+ 新增</button>
+                        </div>
+                    </div>
+                    <div id="subcategories-tags" class="flex flex-wrap gap-2">
+                        <!-- JS 生成標籤 -->
+                    </div>
+                </div>
+
+                <!-- 核心收入與目標 (這裡的薪資是作為預算規劃基礎) -->
+                <div class="bg-white rounded-2xl p-6 mb-6 border border-stone-100 shadow-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-bold text-stone-400 mb-2 tracking-widest uppercase">實拿月薪 (預算基準)</label>
+                            <input type="number" id="salary" value="35980" class="w-full p-3 input-style font-bold text-stone-700" oninput="calculate()">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-stone-400 mb-2 tracking-widest uppercase">存款目標 (長期儲蓄)</label>
+                            <input type="number" id="savings" value="10000" class="w-full p-3 input-style font-bold text-stone-700" oninput="calculate()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8" id="jars-container">
+                    <!-- JS 生成 -->
+                </div>
+
+                <div class="milktea-gradient text-white rounded-3xl p-8 text-center shadow-lg">
+                    <h2 class="text-sm font-medium opacity-80 mb-1">本月生活罐剩餘可動用金額</h2>
+                    <div class="text-5xl font-bold tracking-tighter" id="monthly-total">$0</div>
+                </div>
+
+                <!-- 本月統計與歷史 -->
+                <div class="mt-8 bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xs font-bold text-stone-400 tracking-widest uppercase">統計與工具</h3>
+                        <div class="flex gap-2">
+                            <button onclick="exportCSV()" class="text-[10px] bg-stone-100 text-stone-500 px-3 py-1 rounded-full hover:bg-stone-200 transition">匯出明細</button>
+                            <button onclick="archiveMonth()" class="text-[10px] milktea-gradient text-white px-3 py-1 rounded-full hover:brightness-105 transition">結算存檔</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-6" id="stats-summary">
+                        <!-- JS 動態更新 -->
+                    </div>
+                    <div class="pt-4 border-t border-stone-50">
+                        <h4 class="text-[10px] font-bold text-stone-300 mb-3 tracking-widest uppercase">歷史月分存檔</h4>
+                        <div id="history-list" class="flex flex-wrap gap-2 text-[10px]"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：記帳區 -->
+            <div class="lg:col-span-4">
+                <div class="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm h-full flex flex-col">
+                    <!-- 頁籤切換 -->
+                    <div class="flex mb-6 border-b border-stone-100">
+                        <button onclick="switchTab('expense')" id="tab-expense" class="flex-1 py-2 text-sm font-bold tab-active">支出</button>
+                        <button onclick="switchTab('income')" id="tab-income" class="flex-1 py-2 text-sm font-bold text-stone-400">收入</button>
+                    </div>
+                    
+                    <!-- 支出表單 -->
+                    <div id="form-expense" class="space-y-3 mb-6">
+                        <input type="text" id="exp-name" placeholder="項目名稱 (如: 巷口乾麵)" class="w-full p-3 input-style text-sm">
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="exp-subcat" class="w-full p-3 input-style text-[11px]"></select>
+                            <select id="exp-category" class="w-full p-3 input-style text-[11px]">
+                                <option value="NEC">生活必要</option>
+                                <option value="PLAY">享樂給予</option>
+                                <option value="EDU">教育成長</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="number" id="exp-amount" placeholder="金額" class="w-full p-3 input-style text-sm font-bold">
+                            <select id="exp-account" class="w-full p-3 input-style text-[11px]"></select>
+                        </div>
+                        <button onclick="addRecord('expense')" class="w-full milktea-gradient text-white py-3 rounded-xl font-bold hover:brightness-105 transition">新增支出</button>
+                    </div>
+
+                    <!-- 收入表單 (預設隱藏) -->
+                    <div id="form-income" class="space-y-3 mb-6 hidden">
+                        <input type="text" id="inc-name" placeholder="收入來源 (如: 薪水、紅包)" class="w-full p-3 input-style text-sm">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="number" id="inc-amount" placeholder="金額" class="w-full p-3 input-style text-sm font-bold">
+                            <select id="inc-account" class="w-full p-3 input-style text-[11px]"></select>
+                        </div>
+                        <button onclick="addRecord('income')" class="w-full milktea-gradient-green text-white py-3 rounded-xl font-bold hover:brightness-105 transition">新增收入</button>
+                    </div>
+
+                    <!-- 紀錄列表 -->
+                    <div class="flex-grow overflow-y-auto max-h-[500px] space-y-2 pr-1" id="record-list"></div>
+
+                    <div class="mt-6 pt-4 border-t border-stone-50">
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] text-stone-400">本月收入</span>
+                            <span class="text-sm font-bold text-green-600" id="total-inc-val">+$0</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-[10px] text-stone-400">本月支出</span>
+                            <span class="text-sm font-bold text-red-400" id="total-exp-val">-$0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 新增帳戶 -->
+    <div id="account-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-stone-700 mb-6">新增帳戶</h3>
+            <div class="space-y-4">
+                <input type="text" id="new-acc-name" placeholder="帳戶名稱 (如: 國泰、現金)" class="w-full p-3 input-style">
+                <input type="number" id="new-acc-balance" placeholder="當前金額" class="w-full p-3 input-style">
+                <div class="flex gap-2 pt-4">
+                    <button onclick="toggleModal('account-modal')" class="flex-1 py-3 text-stone-400 font-bold">取消</button>
+                    <button onclick="addAccount()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">確認新增</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 資料初始化
+        let records = JSON.parse(localStorage.getItem('milk_tea_records_v4')) || [];
+        let history = JSON.parse(localStorage.getItem('milk_tea_history_v4')) || [];
+        let accounts = JSON.parse(localStorage.getItem('milk_tea_accounts_v4')) || [];
+        let subcategories = JSON.parse(localStorage.getItem('milk_tea_subcats')) || [];
+        let currentTab = 'expense';
+
+        function toggleModal(id) {
+            document.getElementById(id).classList.toggle('hidden');
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tab-expense').className = `flex-1 py-2 text-sm font-bold ${tab === 'expense' ? 'tab-active' : 'text-stone-400'}`;
+            document.getElementById('tab-income').className = `flex-1 py-2 text-sm font-bold ${tab === 'income' ? 'tab-active' : 'text-stone-400'}`;
+            document.getElementById('form-expense').classList.toggle('hidden', tab !== 'expense');
+            document.getElementById('form-income').classList.toggle('hidden', tab !== 'income');
+        }
+
+        // 帳戶管理
+        function addAccount() {
+            const name = document.getElementById('new-acc-name').value.trim();
+            const balance = parseFloat(document.getElementById('new-acc-balance').value) || 0;
+            if (name) {
+                accounts.push({ id: Date.now(), name, balance });
+                document.getElementById('new-acc-name').value = '';
+                document.getElementById('new-acc-balance').value = '';
+                toggleModal('account-modal');
+                calculate();
+            }
+        }
+
+        function updateAccountBalance(id, newBalance) {
+            const idx = accounts.findIndex(a => a.id === id);
+            if (idx !== -1) {
+                accounts[idx].balance = parseFloat(newBalance) || 0;
+                calculate();
+            }
+        }
+
+        function deleteAccount(id) {
+            if (confirm('確定要刪除帳戶嗎？')) {
+                accounts = accounts.filter(a => a.id !== id);
+                calculate();
+            }
+        }
+
+        // 次分類管理
+        function addSubCategory() {
+            const name = document.getElementById('new-subcat-name').value.trim();
+            if (name && !subcategories.includes(name)) {
+                subcategories.push(name);
+                document.getElementById('new-subcat-name').value = '';
+                calculate();
+            }
+        }
+
+        function deleteSubCategory(name) {
+            subcategories = subcategories.filter(s => s !== name);
+            calculate();
+        }
+
+        // 核心計算與渲染
+        function calculate() {
+            const salary = parseFloat(document.getElementById('salary').value) || 0;
+            const savingsGoal = parseFloat(document.getElementById('savings').value) || 0;
+
+            // 渲染帳戶
+            const accCont = document.getElementById('accounts-container');
+            if (accounts.length === 0) {
+                accCont.innerHTML = `<div class="col-span-full py-4 text-center text-stone-300 text-[10px] italic border-2 border-dashed border-stone-100 rounded-xl">尚無帳戶，請點擊右上方新增</div>`;
+            } else {
+                accCont.innerHTML = accounts.map(a => `
+                    <div class="bg-stone-50 p-4 rounded-xl border border-stone-100 relative group">
+                        <button onclick="deleteAccount(${a.id})" class="absolute top-2 right-2 text-stone-300 opacity-0 group-hover:opacity-100 hover:text-red-400">✕</button>
+                        <div class="text-[10px] text-stone-400 font-bold uppercase mb-1">${a.name}</div>
+                        <input type="number" value="${a.balance}" onchange="updateAccountBalance(${a.id}, this.value)" class="w-full bg-transparent font-bold text-stone-600 focus:outline-none">
+                    </div>
+                `).join('');
+            }
+            
+            const totalAssetsValue = accounts.reduce((s, a) => s + a.balance, 0);
+            document.getElementById('total-assets').innerText = `$${totalAssetsValue.toLocaleString()}`;
+
+            // 渲染次分類標籤
+            const subTags = document.getElementById('subcategories-tags');
+            subTags.innerHTML = subcategories.length === 0 ? `<span class="text-stone-300 text-[10px] italic">尚未建立次分類標籤</span>` : 
+                subcategories.map(s => `
+                    <span class="bg-stone-100 text-stone-500 text-[10px] px-2 py-1 rounded-md flex items-center gap-1">
+                        ${s} <button onclick="deleteSubCategory('${s}')" class="hover:text-red-400">×</button>
+                    </span>
+                `).join('');
+
+            // 更新支出/收入表單中的選單
+            const subSelect = document.getElementById('exp-subcat');
+            subSelect.innerHTML = '<option value="">次分類</option>' + subcategories.map(s => `<option value="${s}">${s}</option>`).join('');
+            
+            const expAccSelect = document.getElementById('exp-account');
+            const incAccSelect = document.getElementById('inc-account');
+            const accOptions = accounts.length === 0 ? '<option value="">請先新增帳戶</option>' : accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+            expAccSelect.innerHTML = accOptions;
+            incAccSelect.innerHTML = accOptions;
+
+            // 計算分類統計
+            const totals = {
+                INC: records.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0),
+                NEC: records.filter(r => r.type === 'expense' && r.category === 'NEC').reduce((s, r) => s + r.amount, 0),
+                PLAY: records.filter(r => r.type === 'expense' && r.category === 'PLAY').reduce((s, r) => s + r.amount, 0),
+                EDU: records.filter(r => r.type === 'expense' && r.category === 'EDU').reduce((s, r) => s + r.amount, 0)
+            };
+
+            const grandExp = totals.NEC + totals.PLAY + totals.EDU;
+            document.getElementById('total-inc-val').innerText = `+$${totals.INC.toLocaleString()}`;
+            document.getElementById('total-exp-val').innerText = `-$${grandExp.toLocaleString()}`;
+            
+            // 渲染統計卡片
+            document.getElementById('stats-summary').innerHTML = `
+                <div class="p-3 bg-stone-50 rounded-xl"><div class="text-[10px] text-stone-400 mb-1">本月收入</div><div class="font-bold text-green-600">$${totals.INC.toLocaleString()}</div></div>
+                <div class="p-3 bg-stone-50 rounded-xl"><div class="text-[10px] text-stone-400 mb-1">生活必要</div><div class="font-bold text-stone-600">$${totals.NEC.toLocaleString()}</div></div>
+                <div class="p-3 bg-stone-50 rounded-xl"><div class="text-[10px] text-stone-400 mb-1">享樂給予</div><div class="font-bold text-stone-600">$${totals.PLAY.toLocaleString()}</div></div>
+                <div class="p-3 bg-stone-50 rounded-xl"><div class="text-[10px] text-stone-400 mb-1">教育成長</div><div class="font-bold text-stone-600">$${totals.EDU.toLocaleString()}</div></div>
+            `;
+
+            // 罐子預算邏輯
+            const ffa = 5000; 
+            const eduBase = Math.floor(salary * 0.03);
+            const playBase = Math.floor(salary * 0.05);
+            const giveBase = Math.floor(salary * 0.02);
+            const insurance = 5000;
+            const necBase = salary - ffa - savingsGoal - eduBase - playBase - giveBase - insurance;
+
+            const jars = [
+                { title: '生活必要', amount: necBase - totals.NEC, detail: '扣除必要支出' },
+                { title: '長期儲蓄', amount: savingsGoal, detail: '存款目標' },
+                { title: '享樂給予', amount: (playBase + giveBase) - totals.PLAY, detail: '休閒與社交' }
+            ];
+
+            document.getElementById('jars-container').innerHTML = jars.map(j => `
+                <div class="jar-card bg-white p-4 rounded-2xl">
+                    <div class="text-[10px] font-bold text-stone-400 mb-1 uppercase">${j.title}</div>
+                    <div class="text-lg font-black text-stone-700">$${j.amount.toLocaleString()}</div>
+                    <div class="text-[9px] text-stone-300 mt-1">${j.detail}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('monthly-total').innerText = `$${(necBase - totals.NEC).toLocaleString()}`;
+            
+            renderRecords();
+            renderHistory();
+            saveData();
+        }
+
+        function addRecord(type) {
+            const nameId = type === 'expense' ? 'exp-name' : 'inc-name';
+            const amountId = type === 'expense' ? 'exp-amount' : 'inc-amount';
+            const accId = type === 'expense' ? 'exp-account' : 'inc-account';
+            
+            const name = document.getElementById(nameId).value.trim();
+            const amount = parseFloat(document.getElementById(amountId).value) || 0;
+            const accountId = parseInt(document.getElementById(accId).value);
+
+            if (accounts.length === 0) { alert('請先新增帳戶！'); return; }
+            if (amount <= 0 || isNaN(accountId)) return;
+
+            const accIdx = accounts.findIndex(a => a.id === accountId);
+            if (accIdx !== -1) {
+                if (type === 'expense') {
+                    accounts[accIdx].balance -= amount;
+                } else {
+                    accounts[accIdx].balance += amount;
+                }
+            }
+
+            const record = {
+                id: Date.now(),
+                type: type,
+                name: type === 'expense' && document.getElementById('exp-subcat').value ? `[${document.getElementById('exp-subcat').value}] ${name}` : name,
+                amount: amount,
+                category: type === 'expense' ? document.getElementById('exp-category').value : 'INCOME',
+                categoryName: type === 'expense' ? {NEC:'生活', PLAY:'享樂', EDU:'教育'}[document.getElementById('exp-category').value] : '收入',
+                accountName: accounts.find(a => a.id === accountId)?.name || '未知',
+                date: new Date().toLocaleDateString()
+            };
+
+            records.unshift(record);
+            document.getElementById(nameId).value = '';
+            document.getElementById(amountId).value = '';
+            calculate();
+        }
+
+        function renderRecords() {
+            const list = document.getElementById('record-list');
+            if (records.length === 0) {
+                list.innerHTML = `<div class="text-center py-20 text-stone-200 text-xs tracking-widest">目前無紀錄</div>`;
+                return;
+            }
+            list.innerHTML = records.map(r => `
+                <div class="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100 group">
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-stone-600">${r.name || '未命名'}</span>
+                            <span class="text-[8px] px-1.5 py-0.5 ${r.type === 'income' ? 'bg-green-100 text-green-500' : 'bg-stone-200 text-white'} rounded">${r.categoryName}</span>
+                        </div>
+                        <span class="text-[9px] text-stone-300">${r.date} · ${r.type === 'income' ? '存入' : '支出於'} ${r.accountName}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-bold ${r.type === 'income' ? 'text-green-600' : 'text-stone-500'}">
+                            ${r.type === 'income' ? '+' : '-'}$${r.amount.toLocaleString()}
+                        </span>
+                        <button onclick="deleteRecord(${r.id})" class="text-stone-200 hover:text-stone-400 opacity-0 group-hover:opacity-100 transition">✕</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function deleteRecord(id) {
+            records = records.filter(r => r.id !== id);
+            calculate();
+        }
+
+        function archiveMonth() {
+            if (records.length === 0) return;
+            const monthName = prompt('請輸入月份標記', new Date().getFullYear() + '/' + (new Date().getMonth() + 1));
+            if (monthName) {
+                history.unshift({ month: monthName, total: records.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0) });
+                records = [];
+                calculate();
+            }
+        }
+
+        function renderHistory() {
+            const histList = document.getElementById('history-list');
+            histList.innerHTML = history.map(h => `
+                <div class="bg-stone-100 px-3 py-1.5 rounded-full border border-stone-200 flex gap-2">
+                    <span class="font-bold text-stone-600">${h.month}</span>
+                    <span class="text-stone-400">$${h.total.toLocaleString()}</span>
+                </div>
+            `).join('');
+        }
+
+        function exportCSV() {
+            let csv = "\uFEFF類型,日期,項目,金額,類別,帳戶\n";
+            records.forEach(r => csv += `${r.type === 'income' ? '收入' : '支出'},${r.date},${r.name},${r.amount},${r.categoryName},${r.accountName}\n`);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `理財報告_${new Date().toLocaleDateString()}.csv`;
+            link.click();
+        }
+
+        function saveData() {
+            localStorage.setItem('milk_tea_records_v4', JSON.stringify(records));
+            localStorage.setItem('milk_tea_history_v4', JSON.stringify(history));
+            localStorage.setItem('milk_tea_accounts_v4', JSON.stringify(accounts));
+            localStorage.setItem('milk_tea_subcats', JSON.stringify(subcategories));
+        }
+
+        window.onload = calculate;
+    </script>
+</body>
+</html>
