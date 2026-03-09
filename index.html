@@ -56,9 +56,12 @@
             </div>
             
             <!-- Google Sheets 設定區 -->
-            <div class="flex gap-2 bg-white p-3 rounded-2xl shadow-sm border border-stone-100">
-                <input type="text" id="sheet-id" placeholder="Google Sheet ID" class="text-[10px] p-2 input-style w-48 md:w-64">
-                <button onclick="syncWithSheets()" class="text-[10px] milktea-gradient text-white px-4 py-2 rounded-xl font-bold hover:brightness-105 transition">立即同步</button>
+            <div class="flex flex-col gap-2 bg-white p-4 rounded-2xl shadow-sm border border-stone-100 w-full md:w-auto">
+                <div class="flex gap-2">
+                    <input type="text" id="script-url" placeholder="貼上 Google Script Web App URL" class="text-[10px] p-2 input-style w-full md:w-80">
+                    <button onclick="syncWithSheets()" id="sync-btn" class="text-[10px] milktea-gradient text-white px-4 py-2 rounded-xl font-bold hover:brightness-105 transition whitespace-nowrap">同步雲端資料</button>
+                </div>
+                <p class="text-[9px] text-stone-400">* 請先部署 Google Apps Script 並取得 Web App 網址</p>
             </div>
         </header>
 
@@ -163,10 +166,9 @@
         window.state = {
             records: [],
             accounts: [],
-            fixedExpenses: [],
             salary: 40000,
             savingsGoal: 10000,
-            sheetId: ''
+            scriptUrl: ''
         };
 
         // 讀取 LocalStorage (本地快取)
@@ -176,44 +178,66 @@
                 try {
                     const parsed = JSON.parse(savedData);
                     window.state = { ...window.state, ...parsed };
-                    document.getElementById('sheet-id').value = window.state.sheetId || '';
+                    document.getElementById('script-url').value = window.state.scriptUrl || '';
                 } catch (e) { console.error(e); }
             }
             updateUI();
         }
 
-        // 儲存至 LocalStorage 並觸發更新
+        // 儲存至 LocalStorage
         function saveData() {
-            window.state.sheetId = document.getElementById('sheet-id').value;
+            window.state.scriptUrl = document.getElementById('script-url').value;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(window.state));
             updateUI();
         }
 
-        // Google Sheets 同步邏輯 (讀取 JSON 版)
+        // Google Sheets 同步邏輯 (透過 Apps Script)
         async function syncWithSheets() {
-            const sheetId = document.getElementById('sheet-id').value.trim();
-            if (!sheetId) {
-                alert("請輸入 Google Sheet ID");
+            const scriptUrl = document.getElementById('script-url').value.trim();
+            if (!scriptUrl) {
+                alert("請先貼上 Google Apps Script 的 Web App 網址");
                 return;
             }
 
-            // 提示：這需要將試算表發佈為「知道連結的人可檢視」
-            // 且使用 Google Visualization API (簡易讀取)
-            const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
+            const btn = document.getElementById('sync-btn');
+            btn.innerText = "同步中...";
+            btn.disabled = true;
             
             try {
-                const response = await fetch(url);
-                const text = await response.text();
-                // 處理 Google 回傳的奇怪 JSON 格式
-                const json = JSON.parse(text.substr(47).slice(0, -2));
-                console.log("從 Sheets 讀取的原始資料:", json);
+                // 嘗試從雲端抓取最新資料 (doGet)
+                const response = await fetch(scriptUrl);
+                const cloudData = await response.json();
                 
-                // 這裡可自定義 Sheets 欄位對應邏輯
-                // 為了教學方便，目前僅儲存 ID 並顯示連線成功
-                alert("已成功連線至 Google Sheets！(備註：寫入功能需配合 Google Apps Script 部署)");
-                saveData();
+                if (cloudData && Array.isArray(cloudData)) {
+                    // 簡單的合併邏輯：以雲端為主
+                    window.state.records = cloudData;
+                    alert("同步成功！已從雲端下載最新紀錄。");
+                    saveData();
+                }
             } catch (err) {
-                alert("讀取失敗，請確認 Sheet ID 正確且已開啟「知道連結的任何人都能檢視」");
+                console.error(err);
+                alert("同步失敗，請檢查 Script URL 是否正確，且部署為「所有人」皆可存取。");
+            } finally {
+                btn.innerText = "同步雲端資料";
+                btn.disabled = false;
+            }
+        }
+
+        // 新增紀錄時同步寫入 (doPost)
+        async function pushToSheets(record) {
+            const scriptUrl = window.state.scriptUrl;
+            if (!scriptUrl) return;
+
+            try {
+                await fetch(scriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', // 因為跨網域限制，doPost 通常用 no-cors
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(record)
+                });
+                console.log("雲端同步成功");
+            } catch (e) {
+                console.error("雲端同步失敗", e);
             }
         }
 
@@ -268,7 +292,7 @@
             const catMap = {NEC:'生活', FFA:'財務', LTSS:'儲蓄', INT:'興趣', PLAY:'享樂'};
             const cat = type === 'expense' ? document.getElementById('exp-category').value : 'INC';
 
-            window.state.records.unshift({
+            const newRecord = {
                 id: Date.now(),
                 type,
                 name,
@@ -277,7 +301,10 @@
                 categoryName: type === 'expense' ? catMap[cat] : '收入',
                 accountName: window.state.accounts.find(a => a.id === accId).name,
                 date: new Date().toLocaleDateString()
-            });
+            };
+
+            window.state.records.unshift(newRecord);
+            pushToSheets(newRecord); // 同步到 Google Sheets
 
             document.getElementById(type === 'expense' ? 'exp-name' : 'inc-name').value = '';
             document.getElementById(type === 'expense' ? 'exp-amount' : 'inc-amount').value = '';
