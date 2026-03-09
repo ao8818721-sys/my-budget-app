@@ -205,7 +205,7 @@
         
         window.state = {
             records: [],
-            accounts: [], // 結構增加 { name, balance, currency }
+            accounts: [], // 結構包含 { name, balance, currency }
             settings: { salary: 40000, savingsGoal: 10000, usdRate: 32.5 },
             scriptUrl: ''
         };
@@ -230,7 +230,15 @@
         function loadLocalData() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
-                window.state = JSON.parse(saved);
+                const parsed = JSON.parse(saved);
+                // 確保幣別資訊被保留，防止回傳空字串或未定義
+                if (parsed.accounts) {
+                    parsed.accounts = parsed.accounts.map(acc => ({
+                        ...acc,
+                        currency: acc.currency || 'TWD'
+                    }));
+                }
+                window.state = parsed;
                 document.getElementById('script-url').value = window.state.scriptUrl || '';
                 document.getElementById('usd-rate').value = window.state.settings.usdRate || 32.5;
             }
@@ -251,7 +259,13 @@
                 const response = await fetch(url);
                 const cloudData = await response.json();
                 if (cloudData.records) window.state.records = cloudData.records;
-                if (cloudData.accounts) window.state.accounts = cloudData.accounts;
+                if (cloudData.accounts) {
+                    // 確保雲端抓下來的幣別資料不會丟失
+                    window.state.accounts = cloudData.accounts.map(acc => ({
+                        ...acc,
+                        currency: acc.currency || 'TWD'
+                    }));
+                }
                 if (cloudData.settings) window.state.settings = cloudData.settings;
                 saveData();
                 if (showNotify) alert("雲端資料已同步成功！");
@@ -299,6 +313,9 @@
             await pushAction({ action: 'updateAccounts', data: window.state.accounts });
             document.getElementById('new-acc-name').value = '';
             document.getElementById('new-acc-balance').value = '';
+            // 重設為台幣，避免下一個帳戶被預設成上一個選的
+            document.getElementById('new-acc-currency').value = 'TWD';
+            
             renderModalAccountList();
             updateUI();
         }
@@ -319,9 +336,14 @@
         }
 
         async function addRecord(type) {
-            const name = document.getElementById(type === 'expense' ? 'exp-name' : 'inc-name').value.trim();
-            const amount = parseFloat(document.getElementById(type === 'expense' ? 'exp-amount' : 'inc-amount').value) || 0;
-            const accName = document.getElementById(type === 'expense' ? 'exp-account' : 'inc-account').value;
+            const nameField = type === 'expense' ? 'exp-name' : 'inc-name';
+            const amountField = type === 'expense' ? 'exp-amount' : 'inc-amount';
+            const accField = type === 'expense' ? 'exp-account' : 'inc-account';
+            
+            const name = document.getElementById(nameField).value.trim();
+            const amount = parseFloat(document.getElementById(amountField).value) || 0;
+            const accName = document.getElementById(accField).value;
+            
             if (amount <= 0 || !accName) return;
 
             const cat = type === 'expense' ? document.getElementById('exp-category').value : 'INC';
@@ -342,8 +364,8 @@
             updateUI();
             await pushAction({ action: 'addRecord', data: newRecord });
             
-            document.getElementById(type === 'expense' ? 'exp-name' : 'inc-name').value = '';
-            document.getElementById(type === 'expense' ? 'exp-amount' : 'inc-amount').value = '';
+            document.getElementById(nameField).value = '';
+            document.getElementById(amountField).value = '';
         }
 
         async function deleteRecord(id) {
@@ -357,7 +379,7 @@
             document.getElementById('savings-goal').value = window.state.settings.savingsGoal;
             const rate = window.state.settings.usdRate || 32.5;
 
-            // 1. 計算各帳戶餘額 (保留原幣別)
+            // 1. 計算各帳戶餘額 (嚴格鎖定幣別)
             const balances = {};
             const curMap = {};
             window.state.accounts.forEach(a => { 
@@ -396,6 +418,7 @@
             
             document.getElementById('total-assets').innerText = `$${Math.round(totalTWD).toLocaleString()}`;
 
+            // 確保下拉選單維持正確的幣別標示
             const options = window.state.accounts.map(a => `<option value="${a.name}">${a.name} (${a.currency || 'TWD'})</option>`).join('');
             document.getElementById('exp-account').innerHTML = options;
             document.getElementById('inc-account').innerHTML = options;
@@ -435,7 +458,10 @@
 
             // 4. 紀錄列表
             const list = document.getElementById('record-list');
-            if (window.state.records.length === 0) { list.innerHTML = `<div class="text-center py-20 text-stone-200 text-xs">尚無紀錄</div>`; return; }
+            if (window.state.records.length === 0) { 
+                list.innerHTML = `<div class="text-center py-20 text-stone-200 text-xs">尚無紀錄</div>`; 
+                return; 
+            }
             list.innerHTML = window.state.records.map(r => {
                 const currency = curMap[r.accountName] || 'TWD';
                 return `
