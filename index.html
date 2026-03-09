@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>理財記帳簿 - 多幣別版</title>
+    <title>理財記帳簿 - 完全自動匯率版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -34,9 +34,6 @@
             border-color: #b8a390;
             box-shadow: 0 0 0 3px rgba(184, 163, 144, 0.1);
         }
-        .modal-bg {
-            background-color: rgba(93, 82, 69, 0.4);
-        }
         .locked-content {
             display: none;
         }
@@ -51,6 +48,15 @@
         @keyframes pulse {
             0%, 100% { opacity: 0.3; transform: scale(0.8); }
             50% { opacity: 1; transform: scale(1.2); }
+        }
+        .modal-bg {
+            background-color: rgba(93, 82, 69, 0.4);
+        }
+        /* 唯讀匯率樣式 */
+        .readonly-rate {
+            background-color: #e5ddd3;
+            color: #8c7e6e;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -67,7 +73,7 @@
             <p class="text-stone-400 text-sm mt-2">請輸入存取密碼以繼續</p>
         </div>
         <div class="w-full max-w-xs space-y-4">
-            <input type="password" id="auth-password" placeholder="請輸入密碼" class="w-full p-4 input-style text-center tracking-widest font-bold">
+            <input type="password" id="auth-password" placeholder="預設密碼 1234" class="w-full p-4 input-style text-center tracking-widest font-bold">
             <button onclick="checkPassword()" class="w-full milktea-gradient text-white py-4 rounded-2xl font-bold shadow-md hover:brightness-105 transition">驗證身分</button>
             <div id="auth-error" class="text-red-400 text-xs hidden">密碼錯誤</div>
         </div>
@@ -79,7 +85,7 @@
             <div>
                 <h1 class="text-2xl font-bold tracking-widest text-stone-700 mb-1">理財記帳簿</h1>
                 <div class="flex items-center gap-2">
-                    <p class="text-stone-400 text-sm italic">全同步多幣別模式</p>
+                    <p class="text-stone-400 text-sm italic">自動匯率與固定支出管理</p>
                     <div id="sync-status" class="hidden"><span class="syncing-dot"></span></div>
                 </div>
             </div>
@@ -101,10 +107,10 @@
                         <div class="flex items-center gap-3">
                             <div class="flex flex-col items-end">
                                 <div class="flex items-center gap-1 text-[10px] text-stone-400">
-                                    <span>美元即時匯率:</span>
-                                    <input type="number" id="usd-rate" step="0.01" value="32.5" class="w-14 bg-stone-100 rounded px-1 text-stone-700 font-bold" onchange="updateGlobalSettings()">
+                                    <span>美元匯率 (USD/TWD):</span>
+                                    <input type="number" id="usd-rate" readonly class="w-14 readonly-rate rounded px-1 text-stone-700 font-bold" title="匯率由系統自動抓取，無法手動修改">
                                 </div>
-                                <span id="rate-update-time" class="text-[8px] text-stone-300">正在獲取最新匯率...</span>
+                                <span id="rate-update-time" class="text-[8px] text-stone-300">正在自動對接匯率...</span>
                             </div>
                             <button onclick="toggleModal('account-modal')" class="text-[10px] bg-stone-100 text-stone-500 px-3 py-1 rounded-full">+ 管理帳戶</button>
                         </div>
@@ -116,16 +122,29 @@
                     </div>
                 </div>
 
-                <!-- 預算設定 -->
-                <div class="bg-white rounded-2xl p-6 mb-6 border border-stone-100 shadow-sm">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label class="block text-xs font-bold text-stone-400 mb-2 tracking-widest">實拿月薪 (TWD)</label>
-                            <input type="number" id="salary" class="w-full p-3 input-style font-bold text-stone-700" onchange="updateGlobalSettings()">
+                <!-- 預算與固定支出設定 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+                        <h3 class="text-xs font-bold text-stone-400 mb-4 tracking-widest uppercase">基本預算</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-[10px] text-stone-400 mb-1">實拿月薪 (TWD)</label>
+                                <input type="number" id="salary" class="w-full p-3 input-style font-bold text-stone-700" onchange="updateGlobalSettings()">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-stone-400 mb-1">儲蓄目標 (固定 TWD)</label>
+                                <input type="number" id="savings-goal" class="w-full p-3 input-style font-bold text-stone-700" onchange="updateGlobalSettings()">
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold text-stone-400 mb-2 tracking-widest">儲蓄目標 (固定 TWD)</label>
-                            <input type="number" id="savings-goal" class="w-full p-3 input-style font-bold text-stone-700" onchange="updateGlobalSettings()">
+                    </div>
+                    
+                    <div class="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xs font-bold text-stone-400 tracking-widest uppercase">固定支出設定</h3>
+                            <button onclick="toggleModal('fixed-expense-modal')" class="text-[10px] text-stone-400 hover:text-[#b8a390]">+ 新增</button>
+                        </div>
+                        <div id="fixed-expenses-list" class="space-y-2 max-h-32 overflow-y-auto pr-1">
+                            <!-- 固定支出項目 -->
                         </div>
                     </div>
                 </div>
@@ -135,8 +154,9 @@
 
                 <!-- 總看板 -->
                 <div class="milktea-gradient text-white rounded-3xl p-10 shadow-lg text-center">
-                    <h2 class="text-sm font-medium opacity-80 mb-3 uppercase">本月剩餘可動用金額 (TWD)</h2>
+                    <h2 class="text-sm font-medium opacity-80 mb-3 uppercase tracking-widest">本月剩餘可動用金額 (TWD)</h2>
                     <div class="text-7xl font-black tracking-tighter" id="monthly-total">$0</div>
+                    <p class="text-[10px] mt-4 opacity-60">已自動預扣固定支出與儲蓄目標</p>
                 </div>
             </div>
 
@@ -160,8 +180,8 @@
                             </select>
                             <select id="exp-account" class="w-full p-3 input-style text-[11px]"></select>
                         </div>
-                        <input type="number" id="exp-amount" placeholder="金額 (依該帳戶幣別)" class="w-full p-3 input-style text-sm font-bold">
-                        <button onclick="addRecord('expense')" class="w-full milktea-gradient text-white py-3 rounded-xl font-bold">新增支出</button>
+                        <input type="number" id="exp-amount" placeholder="金額 (依帳戶幣別)" class="w-full p-3 input-style text-sm font-bold">
+                        <button onclick="addRecord('expense')" class="w-full milktea-gradient text-white py-3 rounded-xl font-bold">新增紀錄</button>
                     </div>
 
                     <div id="form-income" class="space-y-3 mb-6 hidden">
@@ -173,7 +193,7 @@
                         <button onclick="addRecord('income')" class="w-full milktea-gradient-green text-white py-3 rounded-xl font-bold">新增收入</button>
                     </div>
 
-                    <div class="flex-grow overflow-y-auto max-h-[500px] space-y-2 pr-1" id="record-list"></div>
+                    <div class="flex-grow overflow-y-auto max-h-[400px] space-y-2 pr-1" id="record-list"></div>
                 </div>
             </div>
         </div>
@@ -183,58 +203,78 @@
     <div id="account-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
             <h3 class="text-lg font-bold text-stone-700 mb-2">雲端帳戶設定</h3>
-            <p class="text-[10px] text-stone-400 mb-6">設定幣別後，系統會自動根據匯率換算總資產。</p>
+            <p class="text-[10px] text-stone-400 mb-6">設定幣別後，系統會自動換算資產。</p>
             <div class="space-y-4">
-                <input type="text" id="new-acc-name" placeholder="名稱 (例如: 美金存摺)" class="w-full p-3 input-style">
+                <input type="text" id="new-acc-name" placeholder="帳戶名稱 (如: 台新銀行)" class="w-full p-3 input-style">
                 <div class="grid grid-cols-2 gap-2">
-                    <input type="number" id="new-acc-balance" placeholder="起始餘額" class="w-full p-3 input-style">
+                    <input type="number" id="new-acc-balance" placeholder="初始餘額" class="w-full p-3 input-style">
                     <select id="new-acc-currency" class="p-3 input-style">
                         <option value="TWD">台幣 TWD</option>
                         <option value="USD">美金 USD</option>
                     </select>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="toggleModal('account-modal')" class="flex-1 py-3 text-stone-400">關閉</button>
-                    <button onclick="addAccountCloud()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">同步至雲端</button>
+                    <button onclick="toggleModal('account-modal')" class="flex-1 py-3 text-stone-400">取消</button>
+                    <button onclick="addAccountCloud()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">同步更新</button>
                 </div>
                 <div id="modal-account-list" class="mt-4 space-y-2 max-h-40 overflow-y-auto border-t pt-4"></div>
             </div>
         </div>
     </div>
 
+    <!-- 固定支出 Modal -->
+    <div id="fixed-expense-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-stone-700 mb-2">新增固定支出</h3>
+            <p class="text-[10px] text-stone-400 mb-6">例如房租、訂閱，會自動從生活罐子扣除。</p>
+            <div class="space-y-4">
+                <input type="text" id="fixed-exp-name" placeholder="項目名稱 (如: Netflix)" class="w-full p-3 input-style">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="number" id="fixed-exp-amount" placeholder="每月金額" class="w-full p-3 input-style">
+                    <select id="fixed-exp-account" class="p-3 input-style"></select>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="toggleModal('fixed-expense-modal')" class="flex-1 py-3 text-stone-400">取消</button>
+                    <button onclick="addFixedExpense()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">新增項目</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const STORAGE_KEY = 'BUDGET_SYNC_MULTI_CURRENCY_DATA';
+        const STORAGE_KEY = 'BUDGET_MASTER_DATA';
         const AUTH_KEY = 'BUDGET_APP_PWD';
         
         window.state = {
             records: [],
-            accounts: [], // { name, balance, currency }
-            settings: { salary: 40000, savingsGoal: 10000, usdRate: 32.5 },
+            accounts: [],
+            fixedExpenses: [], 
+            settings: { salary: 45000, savingsGoal: 10000, usdRate: 32.5 },
             scriptUrl: ''
         };
 
         window.onload = function() {
             if (!localStorage.getItem(AUTH_KEY)) localStorage.setItem(AUTH_KEY, "1234");
             loadLocalData();
-            fetchLiveRate(); // 初始化時獲取一次即時匯率
+            fetchLiveRate();
         };
 
-        // 獲取即時匯率函式
+        // --- 完全自動匯率邏輯 ---
         async function fetchLiveRate() {
             try {
-                // 使用公開 API 獲取匯率 (USD -> TWD)
                 const res = await fetch('https://open.er-api.com/v6/latest/USD');
                 const data = await res.json();
-                if (data && data.rates && data.rates.TWD) {
-                    const rate = data.rates.TWD;
-                    window.state.settings.usdRate = parseFloat(rate.toFixed(2));
-                    document.getElementById('usd-rate').value = window.state.settings.usdRate;
-                    document.getElementById('rate-update-time').innerText = `最後自動更新: ${new Date().toLocaleTimeString()}`;
+                if (data?.rates?.TWD) {
+                    const newRate = parseFloat(data.rates.TWD.toFixed(2));
+                    window.state.settings.usdRate = newRate;
+                    document.getElementById('usd-rate').value = newRate;
+                    document.getElementById('rate-update-time').innerText = `匯率自動同步成功: ${new Date().toLocaleTimeString()}`;
+                    
+                    // 匯率更新後不需要手動存檔至 settings 以免覆蓋用戶偏好，但在 UI 上即時反應
                     updateUI();
                 }
             } catch (e) {
-                console.warn("無法獲取即時匯率，使用存檔數值", e);
-                document.getElementById('rate-update-time').innerText = "自動更新失敗，請手動校對";
+                document.getElementById('rate-update-time').innerText = "匯率對接失敗，維持當前數值";
             }
         }
 
@@ -244,9 +284,7 @@
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-app').classList.remove('locked-content');
                 if (window.state.scriptUrl) syncWithSheets(false);
-                // 每30分鐘更新一次匯率
-                setInterval(fetchLiveRate, 1800000);
-                setInterval(() => { if (window.state.scriptUrl) syncWithSheets(false); }, 30000);
+                setInterval(fetchLiveRate, 3600000); // 每小時自動對齊一次
             } else {
                 document.getElementById('auth-error').classList.remove('hidden');
             }
@@ -255,16 +293,12 @@
         function loadLocalData() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed.accounts) {
-                    parsed.accounts = parsed.accounts.map(acc => ({
-                        ...acc,
-                        currency: acc.currency || 'TWD'
-                    }));
-                }
-                window.state = parsed;
+                window.state = JSON.parse(saved);
                 document.getElementById('script-url').value = window.state.scriptUrl || '';
+                // 載入時先放上一次存儲的匯率，隨後由 API 更新
                 document.getElementById('usd-rate').value = window.state.settings.usdRate || 32.5;
+                document.getElementById('salary').value = window.state.settings.salary || 0;
+                document.getElementById('savings-goal').value = window.state.settings.savingsGoal || 0;
             }
             updateUI();
         }
@@ -283,24 +317,17 @@
                 const response = await fetch(url);
                 const cloudData = await response.json();
                 if (cloudData.records) window.state.records = cloudData.records;
-                if (cloudData.accounts) {
-                    window.state.accounts = cloudData.accounts.map(acc => ({
-                        ...acc,
-                        currency: acc.currency || 'TWD'
-                    }));
-                }
+                if (cloudData.accounts) window.state.accounts = cloudData.accounts;
+                if (cloudData.fixedExpenses) window.state.fixedExpenses = cloudData.fixedExpenses;
                 if (cloudData.settings) {
-                    // 為了不讓雲端的舊匯率蓋掉剛抓到的新匯率，只在雲端有變動時更新
-                    if (Math.abs(cloudData.settings.usdRate - window.state.settings.usdRate) > 0.001 && showNotify) {
-                        window.state.settings.usdRate = cloudData.settings.usdRate;
-                    }
                     window.state.settings.salary = cloudData.settings.salary;
                     window.state.settings.savingsGoal = cloudData.settings.savingsGoal;
+                    // 雲端匯率僅供參考，以現場對接為準
                 }
                 saveData();
-                if (showNotify) alert("雲端資料已同步成功！");
+                if (showNotify) alert("資料同步成功！");
             } catch (err) {
-                if (showNotify) console.error(err);
+                if (showNotify) console.error("同步失敗", err);
             } finally {
                 document.getElementById('sync-status').classList.add('hidden');
             }
@@ -317,16 +344,36 @@
         function toggleModal(id) { 
             document.getElementById(id).classList.toggle('hidden');
             if (id === 'account-modal') renderModalAccountList();
+            if (id === 'fixed-expense-modal') {
+                const options = window.state.accounts.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+                document.getElementById('fixed-exp-account').innerHTML = options;
+            }
         }
 
-        function renderModalAccountList() {
-            const list = document.getElementById('modal-account-list');
-            list.innerHTML = window.state.accounts.map(a => `
-                <div class="flex justify-between items-center bg-stone-50 p-2 rounded-lg text-[10px]">
-                    <span class="font-bold">${a.name} (${a.currency || 'TWD'} 起始: ${a.balance})</span>
-                    <button onclick="deleteAccountCloud('${a.name}')" class="text-red-400">刪除</button>
-                </div>
-            `).join('');
+        async function addFixedExpense() {
+            const name = document.getElementById('fixed-exp-name').value.trim();
+            const amount = parseFloat(document.getElementById('fixed-exp-amount').value) || 0;
+            const accountName = document.getElementById('fixed-exp-account').value;
+
+            if (!name || amount <= 0) return;
+
+            const newItem = { id: Date.now(), name, amount, accountName };
+            window.state.fixedExpenses.push(newItem);
+            
+            toggleModal('fixed-expense-modal');
+            document.getElementById('fixed-exp-name').value = '';
+            document.getElementById('fixed-exp-amount').value = '';
+            
+            saveData();
+            await pushAction({ action: 'updateFixedExpenses', data: window.state.fixedExpenses });
+            updateUI();
+        }
+
+        async function deleteFixedExpense(id) {
+            window.state.fixedExpenses = window.state.fixedExpenses.filter(f => f.id !== id);
+            saveData();
+            await pushAction({ action: 'updateFixedExpenses', data: window.state.fixedExpenses });
+            updateUI();
         }
 
         async function addAccountCloud() {
@@ -343,10 +390,18 @@
             await pushAction({ action: 'updateAccounts', data: window.state.accounts });
             document.getElementById('new-acc-name').value = '';
             document.getElementById('new-acc-balance').value = '';
-            document.getElementById('new-acc-currency').value = 'TWD';
-            
             renderModalAccountList();
             updateUI();
+        }
+
+        function renderModalAccountList() {
+            const list = document.getElementById('modal-account-list');
+            list.innerHTML = window.state.accounts.map(a => `
+                <div class="flex justify-between items-center bg-stone-50 p-2 rounded-lg text-[10px]">
+                    <span class="font-bold">${a.name} (${a.currency} / 起始: ${a.balance})</span>
+                    <button onclick="deleteAccountCloud('${a.name}')" class="text-red-400">刪除</button>
+                </div>
+            `).join('');
         }
 
         async function deleteAccountCloud(name) {
@@ -359,9 +414,7 @@
         async function updateGlobalSettings() {
             window.state.settings.salary = parseFloat(document.getElementById('salary').value) || 0;
             window.state.settings.savingsGoal = parseFloat(document.getElementById('savings-goal').value) || 0;
-            window.state.settings.usdRate = parseFloat(document.getElementById('usd-rate').value) || 32.5;
-            
-            // 重要：保存時不更動帳戶本身的幣別，只存數值
+            // 匯率不在此手動更新
             saveData();
             await pushAction({ action: 'updateSettings', data: window.state.settings });
         }
@@ -378,15 +431,12 @@
             if (amount <= 0 || !accName) return;
 
             const cat = type === 'expense' ? document.getElementById('exp-category').value : 'INC';
-            const catMap = {NEC:'生活', FFA:'財務', LTSS:'儲蓄', INT:'興趣', PLAY:'享樂', INC:'收入'};
-
             const newRecord = {
                 id: Date.now(),
                 type,
-                name: name || (type === 'expense' ? '未命名支出' : '未命名收入'),
+                name: name || (type === 'expense' ? '一般支出' : '收入'),
                 amount,
                 category: cat,
-                categoryName: catMap[cat],
                 accountName: accName,
                 date: new Date().toLocaleDateString('zh-TW')
             };
@@ -394,7 +444,6 @@
             window.state.records.unshift(newRecord);
             updateUI();
             await pushAction({ action: 'addRecord', data: newRecord });
-            
             document.getElementById(nameField).value = '';
             document.getElementById(amountField).value = '';
         }
@@ -406,17 +455,12 @@
         }
 
         function updateUI() {
-            document.getElementById('salary').value = window.state.settings.salary;
-            document.getElementById('savings-goal').value = window.state.settings.savingsGoal;
             const rate = window.state.settings.usdRate || 32.5;
-
-            // 1. 計算各帳戶餘額
-            const balances = {};
             const curMap = {};
-            window.state.accounts.forEach(a => { 
-                balances[a.name] = a.balance; 
-                curMap[a.name] = a.currency || 'TWD';
-            });
+            window.state.accounts.forEach(a => curMap[a.name] = a.currency);
+
+            const balances = {};
+            window.state.accounts.forEach(a => balances[a.name] = a.balance);
             
             window.state.records.forEach(r => {
                 if (balances.hasOwnProperty(r.accountName)) {
@@ -425,36 +469,41 @@
                 }
             });
 
-            // 2. 渲染帳戶 UI
-            const accCont = document.getElementById('accounts-container');
-            let totalTWD = 0;
-            
-            accCont.innerHTML = Object.keys(balances).map(name => {
-                const currency = curMap[name];
-                const amt = balances[name];
-                const twdEquivalent = currency === 'USD' ? amt * rate : amt;
-                totalTWD += twdEquivalent;
+            window.state.fixedExpenses.forEach(f => {
+                if (balances.hasOwnProperty(f.accountName)) balances[f.accountName] -= f.amount;
+            });
 
+            let totalTWD = 0;
+            document.getElementById('accounts-container').innerHTML = window.state.accounts.map(acc => {
+                const amt = balances[acc.name] || 0;
+                const twdEquivalent = acc.currency === 'USD' ? amt * rate : amt;
+                totalTWD += twdEquivalent;
                 return `
                     <div class="bg-stone-50 p-4 rounded-xl border border-stone-100">
-                        <div class="flex justify-between items-start">
-                            <div class="text-[9px] text-stone-400 font-bold uppercase mb-1">${name}</div>
-                            <div class="text-[8px] bg-stone-200 px-1 rounded text-stone-500">${currency}</div>
-                        </div>
-                        <div class="font-bold text-stone-600">${currency === 'USD' ? '$' : ''}${amt.toLocaleString()}</div>
-                        ${currency === 'USD' ? `<div class="text-[8px] text-stone-300">≈ NT$${Math.round(twdEquivalent).toLocaleString()}</div>` : ''}
+                        <div class="text-[9px] text-stone-400 font-bold uppercase mb-1">${acc.name} (${acc.currency})</div>
+                        <div class="font-bold text-stone-600">${acc.currency==='USD'?'$':''}${amt.toLocaleString()}</div>
+                        ${acc.currency === 'USD' ? `<div class="text-[8px] text-stone-300">≈ NT$${Math.round(twdEquivalent).toLocaleString()}</div>` : ''}
                     </div>
                 `;
             }).join('');
-            
             document.getElementById('total-assets').innerText = `$${Math.round(totalTWD).toLocaleString()}`;
 
-            // 下拉選單維持
-            const options = window.state.accounts.map(a => `<option value="${a.name}">${a.name} (${a.currency || 'TWD'})</option>`).join('');
-            document.getElementById('exp-account').innerHTML = options;
-            document.getElementById('inc-account').innerHTML = options;
+            let totalFixedTWD = 0;
+            document.getElementById('fixed-expenses-list').innerHTML = window.state.fixedExpenses.map(f => {
+                const currency = curMap[f.accountName];
+                const amtTWD = currency === 'USD' ? f.amount * rate : f.amount;
+                totalFixedTWD += amtTWD;
+                return `
+                    <div class="flex justify-between items-center bg-stone-50 p-2 rounded-lg text-[10px]">
+                        <span class="text-stone-600 font-medium">${f.name}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-stone-400">${currency==='USD'?'$':''}${f.amount}</span>
+                            <button onclick="deleteFixedExpense(${f.id})" class="text-red-300 hover:text-red-500">✕</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
-            // 3. 五罐子邏輯
             const totalsTWD = { NEC:0, FFA:0, LTSS:0, INT:0, PLAY:0 };
             window.state.records.forEach(r => { 
                 if(r.type === 'expense') {
@@ -464,11 +513,14 @@
                 }
             });
 
-            const remainingForJar = window.state.settings.salary - window.state.settings.savingsGoal;
+            const salary = window.state.settings.salary || 0;
+            const savings = window.state.settings.savingsGoal || 0;
+            const remainingForJar = salary - savings;
+            
             const jarLogic = [
-                { title: '生活必要 (55%)', val: 0.55, spent: totalsTWD.NEC, id:'NEC' },
+                { title: '生活必要 (55%)', val: 0.55, spent: totalsTWD.NEC + totalFixedTWD, id:'NEC' },
                 { title: '財務自由 (20%)', val: 0.20, spent: totalsTWD.FFA, id:'FFA' },
-                { title: '長期儲蓄 (固定)', val: window.state.settings.savingsGoal, isFixed: true, spent: totalsTWD.LTSS, id:'LTSS' },
+                { title: '長期儲蓄 (固定)', val: savings, isFixed: true, spent: totalsTWD.LTSS, id:'LTSS' },
                 { title: '興趣開支 (15%)', val: 0.15, spent: totalsTWD.INT, id:'INT' },
                 { title: '享樂休閒 (10%)', val: 0.10, spent: totalsTWD.PLAY, id:'PLAY' }
             ];
@@ -487,27 +539,23 @@
             }).join('');
             document.getElementById('monthly-total').innerText = `$${Math.round(consumable).toLocaleString()}`;
 
-            // 4. 紀錄列表
+            const options = window.state.accounts.map(a => `<option value="${a.name}">${a.name} (${a.currency})</option>`).join('');
+            document.getElementById('exp-account').innerHTML = options;
+            document.getElementById('inc-account').innerHTML = options;
+            
             const list = document.getElementById('record-list');
-            if (window.state.records.length === 0) { 
-                list.innerHTML = `<div class="text-center py-20 text-stone-200 text-xs">尚無紀錄</div>`; 
-                return; 
-            }
-            list.innerHTML = window.state.records.map(r => {
-                const currency = curMap[r.accountName] || 'TWD';
-                return `
-                    <div class="group flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100 relative">
-                        <div class="flex flex-col">
-                            <span class="text-xs font-bold text-stone-600">${r.name} <span class="text-[8px] font-normal text-stone-300 ml-1">#${r.categoryName}</span></span>
-                            <span class="text-[8px] text-stone-300">${r.date} · ${r.accountName} (${currency})</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <span class="text-xs font-bold ${r.type === 'income' ? 'text-green-600' : 'text-stone-500'}">${r.type === 'income' ? '+' : '-'}${currency==='USD'?'$':''}${parseFloat(r.amount).toLocaleString()}</span>
-                            <button onclick="deleteRecord(${r.id})" class="text-stone-300 hover:text-red-400 text-[10px] transition">✕</button>
-                        </div>
+            list.innerHTML = window.state.records.map(r => `
+                <div class="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100 relative">
+                    <div class="flex flex-col">
+                        <span class="text-xs font-bold text-stone-600">${r.name}</span>
+                        <span class="text-[8px] text-stone-300">${r.date} · ${r.accountName}</span>
                     </div>
-                `;
-            }).join('');
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-bold ${r.type === 'income' ? 'text-green-600' : 'text-stone-500'}">${r.type === 'income' ? '+' : '-'}${curMap[r.accountName]==='USD'?'$':''}${r.amount.toLocaleString()}</span>
+                        <button onclick="deleteRecord(${r.id})" class="text-stone-300 hover:text-red-400 text-[10px]">✕</button>
+                    </div>
+                </div>
+            `).join('');
         }
 
         function switchTab(tab) {
