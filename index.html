@@ -78,13 +78,13 @@
             <div id="auth-error" class="text-red-400 text-xs hidden">密碼錯誤，請再試一次</div>
             
             <div class="pt-10">
-                <p class="text-[10px] text-stone-300">第一次使用？請在下方設定新密碼</p>
-                <button onclick="setInitialPassword()" class="text-[10px] text-stone-400 underline mt-1">設定/更改密碼</button>
+                <p class="text-[10px] text-stone-300">新裝置/第一次使用？預設密碼為 <span class="font-bold text-stone-500">1234</span></p>
+                <button onclick="setInitialPassword()" class="text-[10px] text-stone-400 underline mt-1">變更此裝置的密碼</button>
             </div>
         </div>
     </div>
 
-    <!-- 主程式內容 (預設隱藏) -->
+    <!-- 主程式內容 -->
     <div id="main-app" class="max-w-6xl mx-auto locked-content">
         <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <div class="text-center md:text-left">
@@ -114,11 +114,11 @@
                 <div class="bg-white rounded-2xl p-6 mb-6 border border-stone-100 shadow-sm">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-xs font-bold text-stone-400 tracking-widest uppercase">帳戶資產管理</h3>
-                        <button onclick="toggleModal('account-modal')" class="text-[10px] bg-stone-100 text-stone-500 px-3 py-1 rounded-full hover:bg-stone-200 transition">+ 新增帳戶</button>
+                        <button onclick="toggleModal('account-modal')" class="text-[10px] bg-stone-100 text-stone-500 px-3 py-1 rounded-full hover:bg-stone-200 transition">+ 設定帳戶/起始額</button>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="accounts-container"></div>
                     <div class="mt-4 pt-4 border-t border-stone-50 flex justify-between items-center">
-                        <span class="text-xs text-stone-400 uppercase tracking-widest">總資產淨值</span>
+                        <span class="text-xs text-stone-400 uppercase tracking-widest">目前總資產淨值</span>
                         <span class="text-xl font-black text-stone-700" id="total-assets">$0</span>
                     </div>
                 </div>
@@ -189,86 +189,64 @@
     <!-- 帳戶 Modal -->
     <div id="account-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
-            <h3 class="text-lg font-bold text-stone-700 mb-6">新增帳戶</h3>
+            <h3 class="text-lg font-bold text-stone-700 mb-6">管理帳戶起始金額</h3>
+            <p class="text-[10px] text-stone-400 mb-4">設定後的餘額會自動加減雲端同步回來的紀錄</p>
             <div class="space-y-4">
-                <input type="text" id="new-acc-name" placeholder="例如：現金、國泰、台新" class="w-full p-3 input-style">
-                <input type="number" id="new-acc-balance" placeholder="目前的餘額" class="w-full p-3 input-style">
+                <input type="text" id="new-acc-name" placeholder="帳戶名稱 (例如：現金)" class="w-full p-3 input-style">
+                <input type="number" id="new-acc-balance" placeholder="起始餘額" class="w-full p-3 input-style">
                 <div class="flex gap-2 pt-4">
                     <button onclick="toggleModal('account-modal')" class="flex-1 py-3 text-stone-400 font-bold">取消</button>
-                    <button onclick="addAccount()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">確認</button>
+                    <button onclick="addAccount()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">新增/更新</button>
                 </div>
+                <div id="modal-account-list" class="mt-4 space-y-2 max-h-40 overflow-y-auto"></div>
             </div>
         </div>
     </div>
 
     <script>
         const STORAGE_KEY = 'BUDGET_SYNC_PRO_DATA';
-        const AUTH_KEY = 'BUDGET_APP_PWD'; // 存儲密碼的 Key
+        const AUTH_KEY = 'BUDGET_APP_PWD';
         
         window.state = {
             records: [],
-            accounts: [],
+            accounts: [], // 這裡存儲的是「起始金額」
             salary: 40000,
             savingsGoal: 10000,
             scriptUrl: '',
             lastSyncTime: 0
         };
 
-        // 啟動流程
         window.onload = function() {
-            // 檢查是否有設定過密碼，如果沒設定過，預設為 "1234"
-            if (!localStorage.getItem(AUTH_KEY)) {
-                localStorage.setItem(AUTH_KEY, "1234");
-            }
-            
-            // 綁定 Enter 鍵驗證
+            if (!localStorage.getItem(AUTH_KEY)) localStorage.setItem(AUTH_KEY, "1234");
             document.getElementById('auth-password').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') checkPassword();
             });
-
             loadLocalData();
         };
 
-        // 密碼驗證邏輯
         function checkPassword() {
             const input = document.getElementById('auth-password').value;
             const correctPwd = localStorage.getItem(AUTH_KEY);
-            const errorMsg = document.getElementById('auth-error');
-
             if (input === correctPwd) {
-                // 通過驗證
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-app').classList.remove('locked-content');
-                
-                // 啟動同步與計時器
-                if (window.state.scriptUrl) {
-                    syncWithSheets(false);
-                }
-                setInterval(() => {
-                    if (window.state.scriptUrl) syncWithSheets(false);
-                }, 30000);
+                if (window.state.scriptUrl) syncWithSheets(false);
+                setInterval(() => { if (window.state.scriptUrl) syncWithSheets(false); }, 30000);
             } else {
-                errorMsg.classList.remove('hidden');
+                document.getElementById('auth-error').classList.remove('hidden');
                 document.getElementById('auth-password').value = '';
             }
         }
 
         function setInitialPassword() {
-            const oldPwd = prompt("請輸入舊密碼（預設為 1234）：");
+            const oldPwd = prompt("請輸入目前裝置的舊密碼：");
             if (oldPwd === localStorage.getItem(AUTH_KEY)) {
                 const newPwd = prompt("請輸入新密碼：");
-                if (newPwd && newPwd.trim().length > 0) {
-                    localStorage.setItem(AUTH_KEY, newPwd.trim());
-                    alert("密碼更新成功！");
-                }
-            } else {
-                alert("密碼不正確。");
-            }
+                if (newPwd) { localStorage.setItem(AUTH_KEY, newPwd.trim()); alert("密碼更新成功！"); }
+            } else alert("密碼不正確。");
         }
 
-        function lockApp() {
-            location.reload(); // 重新整理網頁即可觸發鎖定
-        }
+        function lockApp() { location.reload(); }
 
         function loadLocalData() {
             const saved = localStorage.getItem(STORAGE_KEY);
@@ -288,52 +266,74 @@
         }
 
         function clearAllData() {
-            if(confirm("確定要清除所有本地快取資料嗎？（這不會刪除 Google Sheets 上的資料）")) {
+            if(confirm("確定要清除所有本地快取資料嗎？")) {
                 localStorage.removeItem(STORAGE_KEY);
                 location.reload();
             }
         }
 
-        // 同步核心邏輯
         async function syncWithSheets(showNotify) {
             const scriptUrl = window.state.scriptUrl;
             if (!scriptUrl) return;
-
             const statusEl = document.getElementById('sync-status');
             statusEl.classList.remove('hidden');
-            
             try {
                 const response = await fetch(scriptUrl);
                 const cloudData = await response.json();
-                
                 if (cloudData && Array.isArray(cloudData)) {
                     window.state.records = cloudData;
-                    if (showNotify) alert("同步成功！已獲取雲端最新紀錄。");
+                    if (showNotify) alert("同步成功！");
                     saveData();
                 }
             } catch (err) {
-                console.error("同步失敗", err);
-                if (showNotify) alert("同步失敗，請確認 Script URL 部署設定。");
+                if (showNotify) alert("同步失敗，請檢查 URL。");
             } finally {
                 statusEl.classList.add('hidden');
             }
         }
 
-        // 寫入邏輯
         async function pushToSheets(record) {
             const scriptUrl = window.state.scriptUrl;
             if (!scriptUrl) return;
             try {
-                await fetch(scriptUrl, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify(record)
-                });
+                await fetch(scriptUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify(record) });
             } catch (e) { console.error(e); }
         }
 
-        // UI 與 互動邏輯
-        function toggleModal(id) { document.getElementById(id).classList.toggle('hidden'); }
+        function toggleModal(id) { 
+            document.getElementById(id).classList.toggle('hidden');
+            if (id === 'account-modal') renderModalAccountList();
+        }
+
+        function renderModalAccountList() {
+            const list = document.getElementById('modal-account-list');
+            list.innerHTML = window.state.accounts.map(a => `
+                <div class="flex justify-between items-center bg-stone-50 p-2 rounded-lg text-[10px]">
+                    <span>${a.name} (起始: $${a.balance})</span>
+                    <button onclick="deleteAccount(${a.id})" class="text-red-400">刪除</button>
+                </div>
+            `).join('');
+        }
+
+        function deleteAccount(id) {
+            window.state.accounts = window.state.accounts.filter(a => a.id !== id);
+            saveData();
+            renderModalAccountList();
+        }
+
+        function addAccount() {
+            const name = document.getElementById('new-acc-name').value.trim();
+            const balance = parseFloat(document.getElementById('new-acc-balance').value) || 0;
+            if (name) {
+                const existingIdx = window.state.accounts.findIndex(a => a.name === name);
+                if (existingIdx > -1) window.state.accounts[existingIdx].balance = balance;
+                else window.state.accounts.push({ id: Date.now(), name, balance });
+                document.getElementById('new-acc-name').value = '';
+                document.getElementById('new-acc-balance').value = '';
+                saveData();
+                renderModalAccountList();
+            }
+        }
 
         function switchTab(tab) {
             document.getElementById('tab-expense').className = `flex-1 py-2 text-sm font-bold ${tab === 'expense' ? 'tab-active' : 'text-stone-400'}`;
@@ -348,29 +348,12 @@
             saveData();
         }
 
-        function addAccount() {
-            const name = document.getElementById('new-acc-name').value.trim();
-            const balance = parseFloat(document.getElementById('new-acc-balance').value) || 0;
-            if (name) {
-                window.state.accounts.push({ id: Date.now(), name, balance });
-                document.getElementById('new-acc-name').value = '';
-                document.getElementById('new-acc-balance').value = '';
-                toggleModal('account-modal');
-                saveData();
-            }
-        }
-
         function addRecord(type) {
             const name = document.getElementById(type === 'expense' ? 'exp-name' : 'inc-name').value.trim();
             const amount = parseFloat(document.getElementById(type === 'expense' ? 'exp-amount' : 'inc-amount').value) || 0;
-            const accId = parseInt(document.getElementById(type === 'expense' ? 'exp-account' : 'inc-account').value);
+            const accName = document.getElementById(type === 'expense' ? 'exp-account' : 'inc-account').value;
 
-            if (amount <= 0 || isNaN(accId)) return;
-
-            const accIdx = window.state.accounts.findIndex(a => a.id === accId);
-            if (accIdx !== -1) {
-                window.state.accounts[accIdx].balance += (type === 'income' ? amount : -amount);
-            }
+            if (amount <= 0 || !accName) return;
 
             const catMap = {NEC:'生活', FFA:'財務', LTSS:'儲蓄', INT:'興趣', PLAY:'享樂'};
             const cat = type === 'expense' ? document.getElementById('exp-category').value : 'INC';
@@ -382,14 +365,13 @@
                 amount,
                 category: cat,
                 categoryName: type === 'expense' ? catMap[cat] : '收入',
-                accountName: window.state.accounts.find(a => a.id === accId).name,
+                accountName: accName,
                 date: new Date().toLocaleDateString('zh-TW')
             };
 
             window.state.records.unshift(newRecord);
             saveData();
             pushToSheets(newRecord);
-            
             document.getElementById(type === 'expense' ? 'exp-name' : 'inc-name').value = '';
             document.getElementById(type === 'expense' ? 'exp-amount' : 'inc-amount').value = '';
         }
@@ -398,42 +380,54 @@
             document.getElementById('salary').value = window.state.salary;
             document.getElementById('savings-goal').value = window.state.savingsGoal;
 
-            // 帳戶
+            // 計算各帳戶目前的真實餘額 (起始餘額 + 總收入 - 總支出)
+            const currentAccountBalances = {};
+            window.state.accounts.forEach(a => { currentAccountBalances[a.name] = a.balance; });
+
+            window.state.records.forEach(r => {
+                if (currentAccountBalances.hasOwnProperty(r.accountName)) {
+                    if (r.type === 'income') currentAccountBalances[r.accountName] += r.amount;
+                    else currentAccountBalances[r.accountName] -= r.amount;
+                }
+            });
+
+            // 更新帳戶資產 UI
             const accCont = document.getElementById('accounts-container');
-            accCont.innerHTML = (window.state.accounts || []).map(a => `
+            accCont.innerHTML = Object.keys(currentAccountBalances).map(name => `
                 <div class="bg-stone-50 p-4 rounded-xl border border-stone-100">
-                    <div class="text-[9px] text-stone-400 font-bold uppercase mb-1">${a.name}</div>
-                    <div class="font-bold text-stone-600">$${a.balance.toLocaleString()}</div>
+                    <div class="text-[9px] text-stone-400 font-bold uppercase mb-1">${name}</div>
+                    <div class="font-bold text-stone-600">$${currentAccountBalances[name].toLocaleString()}</div>
                 </div>
             `).join('');
             
-            document.getElementById('total-assets').innerText = `$${(window.state.accounts || []).reduce((s, a) => s + a.balance, 0).toLocaleString()}`;
+            const totalAssets = Object.values(currentAccountBalances).reduce((s, b) => s + b, 0);
+            document.getElementById('total-assets').innerText = `$${totalAssets.toLocaleString()}`;
 
-            const accOptions = (window.state.accounts || []).map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+            const accOptions = window.state.accounts.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
             document.getElementById('exp-account').innerHTML = accOptions;
             document.getElementById('inc-account').innerHTML = accOptions;
 
             // 預算統計
             const totals = {
-                NEC: (window.state.records || []).filter(r => r.type === 'expense' && r.category === 'NEC').reduce((s, r) => s + r.amount, 0),
-                FFA: (window.state.records || []).filter(r => r.type === 'expense' && r.category === 'FFA').reduce((s, r) => s + r.amount, 0),
-                LTSS: (window.state.records || []).filter(r => r.type === 'expense' && r.category === 'LTSS').reduce((s, r) => s + r.amount, 0),
-                INT: (window.state.records || []).filter(r => r.type === 'expense' && r.category === 'INT').reduce((s, r) => s + r.amount, 0),
-                PLAY: (window.state.records || []).filter(r => r.type === 'expense' && r.category === 'PLAY').reduce((s, r) => s + r.amount, 0)
+                NEC: window.state.records.filter(r => r.type === 'expense' && r.category === 'NEC').reduce((s, r) => s + r.amount, 0),
+                FFA: window.state.records.filter(r => r.type === 'expense' && r.category === 'FFA').reduce((s, r) => s + r.amount, 0),
+                LTSS: window.state.records.filter(r => r.type === 'expense' && r.category === 'LTSS').reduce((s, r) => s + r.amount, 0),
+                INT: window.state.records.filter(r => r.type === 'expense' && r.category === 'INT').reduce((s, r) => s + r.amount, 0),
+                PLAY: window.state.records.filter(r => r.type === 'expense' && r.category === 'PLAY').reduce((s, r) => s + r.amount, 0)
             };
 
             const remainingForJar = window.state.salary - window.state.savingsGoal;
             const jarLogic = [
-                { title: '生活必要 (55%)', type: 'perc', val: 0.55, spent: totals.NEC, id:'NEC' },
-                { title: '財務自由 (20%)', type: 'perc', val: 0.20, spent: totals.FFA, id:'FFA' },
-                { title: '長期儲蓄 (固定)', type: 'fixed', val: window.state.savingsGoal, spent: totals.LTSS, id:'LTSS' },
-                { title: '興趣開支 (15%)', type: 'perc', val: 0.15, spent: totals.INT, id:'INT' },
-                { title: '享樂休閒 (10%)', type: 'perc', val: 0.10, spent: totals.PLAY, id:'PLAY' }
+                { title: '生活必要 (55%)', val: 0.55, spent: totals.NEC, id:'NEC' },
+                { title: '財務自由 (20%)', val: 0.20, spent: totals.FFA, id:'FFA' },
+                { title: '長期儲蓄 (固定)', val: window.state.savingsGoal, isFixed: true, spent: totals.LTSS, id:'LTSS' },
+                { title: '興趣開支 (15%)', val: 0.15, spent: totals.INT, id:'INT' },
+                { title: '享樂休閒 (10%)', val: 0.10, spent: totals.PLAY, id:'PLAY' }
             ];
 
             let consumableRemaining = 0;
             document.getElementById('jars-container').innerHTML = jarLogic.map(j => {
-                const budget = j.type === 'perc' ? Math.max(0, Math.floor(remainingForJar * j.val)) : j.val;
+                const budget = j.isFixed ? j.val : Math.max(0, Math.floor(remainingForJar * j.val));
                 const remaining = budget - j.spent;
                 if (j.id !== 'LTSS') consumableRemaining += remaining;
                 return `
@@ -450,7 +444,7 @@
 
         function renderRecords() {
             const list = document.getElementById('record-list');
-            if (!window.state.records || window.state.records.length === 0) { list.innerHTML = `<div class="text-center py-20 text-stone-200 text-xs tracking-widest">尚無紀錄</div>`; return; }
+            if (window.state.records.length === 0) { list.innerHTML = `<div class="text-center py-20 text-stone-200 text-xs tracking-widest">尚無紀錄</div>`; return; }
             list.innerHTML = window.state.records.map(r => `
                 <div class="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
                     <div class="flex flex-col">
