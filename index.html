@@ -1,135 +1,791 @@
-/**
- * 財務記帳簿後端腳本
- * 支援支出、收入、旅行紀錄、固定支出與帳戶設定同步
- */
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>理財記帳簿 - 最終修正版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #fcfaf7;
+            color: #5d5245;
+        }
+        .milktea-gradient {
+            background: linear-gradient(135deg, #dccabd 0%, #b8a390 100%);
+        }
+        .milktea-gradient-green {
+            background: linear-gradient(135deg, #c5d3c1 0%, #a4b69c 100%);
+        }
+        .milktea-gradient-brown {
+            background: linear-gradient(135deg, #e5ddd3 0%, #c8b6a6 100%);
+        }
+        .input-style {
+            background-color: #f3ede6;
+            border: 1px solid #e5ddd3;
+            border-radius: 12px;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .input-style:focus {
+            background-color: #fff;
+            border-color: #b8a390;
+            box-shadow: 0 0 0 3px rgba(184, 163, 144, 0.1);
+        }
+        .locked-content {
+            display: none;
+        }
+        .modal-bg {
+            background-color: rgba(93, 82, 69, 0.4);
+        }
+        .tab-btn {
+            transition: all 0.2s;
+        }
+        .stat-card {
+            background: #fdfcfb;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid #f1ece7;
+        }
+        .pie-chart {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        .payment-tag {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: #eeeae4;
+            color: #8c7e6e;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- 密碼鎖定畫面 -->
+    <div id="auth-screen" class="fixed inset-0 z-[100] bg-[#fcfaf7] flex flex-col items-center justify-center p-6 text-center">
+        <div class="mb-8">
+            <div class="w-16 h-16 milktea-gradient rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold text-stone-700">雲端同步記帳簿</h2>
+            <p class="text-stone-400 text-sm mt-2">請輸入存取密碼以繼續</p>
+        </div>
+        <div class="w-full max-w-xs space-y-4">
+            <input type="password" id="auth-password" placeholder="預設密碼 1234" class="w-full p-4 input-style text-center tracking-widest font-bold">
+            <button onclick="checkPassword()" class="w-full milktea-gradient text-white py-4 rounded-2xl font-bold shadow-md hover:brightness-105 transition">驗證身分</button>
+            <div id="auth-error" class="text-red-400 text-xs hidden">密碼錯誤</div>
+        </div>
+    </div>
 
-function doGet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const data = {
-    records: getSheetData(ss, "records"),
-    tripRecords: getSheetData(ss, "tripRecords"),
-    accounts: getSheetData(ss, "accounts"),
-    fixedExpenses: getSheetData(ss, "fixedExpenses"),
-    settings: getSettings(ss)
-  };
-  
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+    <!-- 主程式內容 -->
+    <div id="main-app" class="max-w-6xl mx-auto locked-content">
+        <div class="mb-6">
+            <h1 class="text-3xl font-black tracking-widest text-stone-700">理財記帳簿</h1>
+            <div id="sync-status" class="hidden"><span class="text-[10px] text-stone-300">雲端資料同步中...</span></div>
+        </div>
 
-function doPost(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const postData = JSON.parse(e.postData.contents);
-  const action = postData.action;
-  const data = postData.data;
+        <header class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
+            <div class="lg:col-span-8 flex items-center">
+                <!-- 歡迎詞已移除 -->
+            </div>
+            
+            <div class="lg:col-span-4 flex flex-col gap-3 bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
+                <div class="flex flex-col gap-1">
+                    <label class="text-[9px] text-stone-400 font-bold px-1 uppercase tracking-tight">雲端同步網址 (Script URL)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="script-url" placeholder="https://script.google.com/..." class="text-[10px] p-2.5 input-style flex-grow" onchange="saveData()">
+                        <button onclick="syncWithSheets(true)" id="sync-btn" class="text-[10px] milktea-gradient text-white px-4 py-2 rounded-xl font-bold whitespace-nowrap shadow-sm">同步</button>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[9px] text-stone-400 font-bold px-1 uppercase tracking-tight">系統存取密碼</label>
+                    <div class="relative w-full">
+                        <input type="password" id="app-password" placeholder="輸入新密碼" class="text-[10px] p-2.5 pr-10 input-style w-full" onchange="updateGlobalSettings()">
+                        <button onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-[#b8a390] transition-colors">
+                            <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-  switch(action) {
-    case 'addRecord':
-      appendRow(ss, "records", [data.id, data.date, data.type, data.name, data.category, data.amount, data.accountName, data.paymentMethod]);
-      break;
-    
-    case 'addTripRecord':
-      appendRow(ss, "tripRecords", [data.id, data.date, data.tripName, data.category, data.amount, data.accountName]);
-      break;
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-8">
+                <div class="bg-white rounded-2xl p-6 mb-6 border border-stone-100 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xs font-bold text-stone-400 tracking-widest uppercase">帳戶資產管理</h3>
+                        <div class="flex items-center gap-3">
+                            <div class="flex flex-col items-end">
+                                <div class="flex items-center gap-1 text-[10px] text-stone-400">
+                                    <span>美元匯率:</span>
+                                    <input type="number" id="usd-rate" readonly class="w-14 bg-stone-100 rounded px-1 text-stone-700 font-bold">
+                                </div>
+                            </div>
+                            <button onclick="toggleModal('account-modal')" class="text-[10px] bg-stone-100 text-stone-500 px-3 py-1 rounded-full">+ 管理帳戶</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="accounts-container"></div>
+                    <div class="mt-4 pt-4 border-t border-stone-50 flex justify-between items-center">
+                        <span class="text-xs text-stone-400 tracking-widest">總資產淨值 (TWD)</span>
+                        <span class="text-xl font-black text-stone-700" id="total-assets">$0</span>
+                    </div>
+                </div>
 
-    case 'deleteRecord':
-      deleteRowById(ss, data.type === 'trip' ? "tripRecords" : "records", data.id);
-      break;
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+                        <h3 class="text-xs font-bold text-stone-400 mb-4 tracking-widest uppercase">基本預算</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] text-stone-400 mb-1">實拿月薪 (TWD)</label>
+                                <input type="number" id="salary" class="w-full p-3 input-style font-bold text-stone-700" onchange="updateGlobalSettings()">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-stone-400 mb-1">儲蓄目標 (固定 TWD)</label>
+                                <input type="number" id="savings-goal" class="w-full p-3 input-style font-bold text-stone-700" onchange="updateGlobalSettings()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xs font-bold text-stone-400 tracking-widest uppercase">固定支出設定</h3>
+                            <button onclick="toggleModal('fixed-expense-modal')" class="text-[10px] text-stone-400 hover:text-[#b8a390]">+ 新增</button>
+                        </div>
+                        <div id="fixed-expenses-list" class="space-y-2 max-h-32 overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
 
-    case 'updateAccounts':
-      updateFullSheet(ss, "accounts", [["name", "balance", "currency"]], data.map(a => [a.name, a.balance, a.currency]));
-      break;
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8" id="jars-container"></div>
 
-    case 'updateFixedExpenses':
-      updateFullSheet(ss, "fixedExpenses", [["id", "name", "amount", "accountName"]], data.map(f => [f.id, f.name, f.amount, f.accountName]));
-      break;
+                <div class="milktea-gradient text-white rounded-3xl p-10 shadow-lg text-center mb-8">
+                    <h2 class="text-sm font-medium opacity-80 mb-3 uppercase tracking-widest">本月剩餘可動用金額 (TWD)</h2>
+                    <div class="text-7xl font-black tracking-tighter" id="monthly-total">$0</div>
+                </div>
+                
+                <div class="bg-[#f3ede6] rounded-3xl p-6 border border-[#e5ddd3] shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xs font-bold text-[#8c7e6e] tracking-widest uppercase flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            旅行明細 (統計已排除)
+                        </h3>
+                        <span id="trip-total-summary" class="text-[10px] font-bold text-[#b8a390] bg-white px-3 py-1 rounded-full border border-[#e5ddd3]">旅行支出: $0</span>
+                    </div>
+                    <div id="trip-records-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                </div>
+            </div>
 
-    case 'updateSettings':
-      // 確保 settings 包含密碼欄位
-      updateFullSheet(ss, "settings", [["key", "value"]], [
-        ["salary", data.salary],
-        ["savingsGoal", data.savingsGoal],
-        ["usdRate", data.usdRate],
-        ["password", data.password || "1234"]
-      ]);
-      break;
-  }
+            <div class="lg:col-span-4">
+                <div class="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm h-full flex flex-col">
+                    <div class="flex mb-6 border-b border-stone-100">
+                        <button onclick="switchTab('expense')" id="tab-expense" class="tab-btn flex-1 py-2 text-[11px] font-bold border-b-2 border-[#b8a390]">支出</button>
+                        <button onclick="switchTab('income')" id="tab-income" class="tab-btn flex-1 py-2 text-[11px] font-bold text-stone-300">收入</button>
+                        <button onclick="switchTab('trip')" id="tab-trip" class="tab-btn flex-1 py-2 text-[11px] font-bold text-stone-300">旅行</button>
+                        <button onclick="switchTab('stats')" id="tab-stats" class="tab-btn flex-1 py-2 text-[11px] font-bold text-stone-300">統計</button>
+                    </div>
+                    
+                    <!-- 支出/收入/旅行表單區塊與前述相同，此處省略以保持精簡，維持所有邏輯... -->
+                    <div id="form-expense" class="space-y-4 mb-6">
+                        <div class="flex flex-col">
+                            <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">支出項目</label>
+                            <input type="text" id="exp-name" placeholder="例如：午餐" class="w-full p-3 input-style text-sm">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="flex flex-col">
+                                <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">儲蓄罐</label>
+                                <select id="exp-category" class="w-full p-3 input-style text-[11px]">
+                                    <option value="NEC">生活必要 (60%)</option>
+                                    <option value="FFA">財務自由 (15%)</option>
+                                    <option value="LTSS">長期儲蓄 (固定)</option>
+                                    <option value="INT">興趣開支 (15%)</option>
+                                    <option value="PLAY">享樂休閒 (10%)</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col">
+                                <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">日期</label>
+                                <input type="date" id="exp-date" class="p-3 input-style text-[11px]">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="flex flex-col">
+                                <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">支付方式</label>
+                                <select id="exp-payment" class="p-3 input-style text-[11px]">
+                                    <option value="現金">現金</option>
+                                    <option value="CUBE">CUBE</option>
+                                    <option value="LinePay">LinePay</option>
+                                    <option value="銀行轉帳">銀行轉帳</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col">
+                                <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">帳戶</label>
+                                <select id="exp-account" class="p-3 input-style text-[11px]"></select>
+                            </div>
+                        </div>
+                        <input type="number" id="exp-amount" placeholder="金額" class="w-full p-3 input-style text-sm font-bold">
+                        <button onclick="addRecord('expense')" class="w-full milktea-gradient text-white py-3 rounded-xl font-bold">新增支出</button>
+                        <div class="flex-grow overflow-y-auto max-h-[300px] space-y-2 pr-1 mt-4" id="record-list-expense"></div>
+                    </div>
 
-  return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
-}
+                    <div id="form-income" class="space-y-4 mb-6 hidden">
+                        <div class="flex flex-col">
+                            <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">收入來源</label>
+                            <input type="text" id="inc-name" placeholder="來源名稱" class="w-full p-3 input-style text-sm">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="date" id="inc-date" class="p-3 input-style text-[11px]">
+                            <select id="inc-account" class="p-3 input-style text-[11px]"></select>
+                        </div>
+                        <input type="number" id="inc-amount" placeholder="金額" class="w-full p-3 input-style text-sm font-bold">
+                        <button onclick="addRecord('income')" class="w-full milktea-gradient-green text-white py-3 rounded-xl font-bold">新增收入</button>
+                        <div class="flex-grow overflow-y-auto max-h-[300px] space-y-2 pr-1 mt-4" id="record-list-income"></div>
+                    </div>
 
-// --- 輔助函式 ---
+                    <div id="form-trip" class="space-y-4 mb-6 hidden">
+                        <div class="flex flex-col">
+                            <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">旅行內容</label>
+                            <input type="text" id="trip-item-name" placeholder="旅行項目" class="w-full p-3 input-style text-sm">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="date" id="trip-date" class="p-3 input-style text-[11px]">
+                            <select id="trip-item-category" class="p-3 input-style text-[11px]">
+                                <option value="飲食">飲食</option>
+                                <option value="交通">交通</option>
+                                <option value="住宿">住宿</option>
+                                <option value="購物">購物</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="trip-item-account" class="p-3 input-style text-[11px]"></select>
+                            <input type="number" id="trip-item-amount" placeholder="金額" class="w-full p-3 input-style text-sm font-bold">
+                        </div>
+                        <button onclick="addTripRecord()" class="w-full milktea-gradient-brown text-[#5d5245] py-3 rounded-xl font-bold">新增旅行紀錄</button>
+                    </div>
 
-function getSheetData(ss, name) {
-  const sheet = ss.getSheetByName(name) || initSheet(ss, name);
-  const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return [];
-  
-  const headers = values[0];
-  return values.slice(1).map(row => {
-    let obj = {};
-    headers.forEach((h, i) => obj[h] = row[i]);
-    return obj;
-  });
-}
+                    <div id="form-stats" class="space-y-4 hidden h-full overflow-y-auto pr-1">
+                        <div id="stats-render-target" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-function getSettings(ss) {
-  const sheet = ss.getSheetByName("settings") || initSheet(ss, "settings", [["key", "value"]]);
-  const values = sheet.getDataRange().getValues();
-  let settings = { salary: 45000, savingsGoal: 10000, usdRate: 32.5, password: "1234" };
-  values.slice(1).forEach(row => {
-    if (row[0]) {
-      // 判斷是否為數字
-      const val = parseFloat(row[1]);
-      settings[row[0]] = isNaN(val) ? row[1] : val;
-    }
-  });
-  return settings;
-}
+    <!-- Modals 區塊與前述相同... -->
+    <div id="account-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-stone-700 mb-4">帳戶管理</h3>
+            <div class="space-y-4">
+                <input type="text" id="new-acc-name" placeholder="帳戶名稱" class="w-full p-3 input-style">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="number" id="new-acc-balance" placeholder="初始餘額" class="w-full p-3 input-style">
+                    <select id="new-acc-currency" class="p-3 input-style">
+                        <option value="TWD">TWD</option>
+                        <option value="USD">USD</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="toggleModal('account-modal')" class="flex-1 py-3 text-stone-400">取消</button>
+                    <button onclick="addAccountCloud()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">保存</button>
+                </div>
+                <div id="modal-account-list" class="mt-4 space-y-2 max-h-40 overflow-y-auto border-t pt-4"></div>
+            </div>
+        </div>
+    </div>
 
-function appendRow(ss, name, rowData) {
-  const sheet = ss.getSheetByName(name) || initSheet(ss, name);
-  sheet.appendRow(rowData);
-}
+    <div id="fixed-expense-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-stone-700 mb-4">新增固定支出</h3>
+            <div class="space-y-4">
+                <input type="text" id="fixed-exp-name" placeholder="項目名稱" class="w-full p-3 input-style">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="number" id="fixed-exp-amount" placeholder="金額" class="w-full p-3 input-style">
+                    <select id="fixed-exp-account" class="p-3 input-style"></select>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="toggleModal('fixed-expense-modal')" class="flex-1 py-3 text-stone-400">取消</button>
+                    <button onclick="addFixedExpense()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">新增</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-function deleteRowById(ss, name, id) {
-  const sheet = ss.getSheetByName(name);
-  if (!sheet) return;
-  const values = sheet.getDataRange().getValues();
-  for (let i = values.length - 1; i >= 1; i--) {
-    if (values[i][0] == id) {
-      sheet.deleteRow(i + 1);
-      break;
-    }
-  }
-}
+    <script>
+        const STORAGE_KEY = 'BUDGET_MASTER_V2';
+        
+        window.state = {
+            records: [],
+            accounts: [],
+            fixedExpenses: [],
+            tripRecords: [], 
+            settings: { salary: 45000, savingsGoal: 10000, usdRate: 32.5, password: "1234" },
+            scriptUrl: ''
+        };
 
-function updateFullSheet(ss, name, headers, rows) {
-  const sheet = ss.getSheetByName(name) || initSheet(ss, name, headers);
-  sheet.clear();
-  sheet.getRange(1, 1, headers.length, headers[0].length).setValues(headers);
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
-  }
-}
+        window.onload = function() {
+            const today = new Date().toISOString().split('T')[0];
+            ['exp-date', 'inc-date', 'trip-date'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.value = today;
+            });
+            loadLocalData();
+            fetchLiveRate();
+        };
 
-function initSheet(ss, name, defaultHeaders) {
-  let sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    sheet = ss.insertSheet(name);
-    const headers = defaultHeaders || getHeadersForName(name);
-    sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
-  }
-  return sheet;
-}
+        async function fetchLiveRate() {
+            try {
+                const res = await fetch('https://open.er-api.com/v6/latest/USD');
+                const data = await res.json();
+                if (data?.rates?.TWD) {
+                    window.state.settings.usdRate = parseFloat(data.rates.TWD.toFixed(2));
+                    const rateEl = document.getElementById('usd-rate');
+                    if (rateEl) rateEl.value = window.state.settings.usdRate;
+                    updateUI();
+                }
+            } catch (e) { console.error(e); }
+        }
 
-function getHeadersForName(name) {
-  switch(name) {
-    case "records": return [["id", "date", "type", "name", "category", "amount", "accountName", "paymentMethod"]];
-    case "tripRecords": return [["id", "date", "tripName", "category", "amount", "accountName"]];
-    case "accounts": return [["name", "balance", "currency"]];
-    case "fixedExpenses": return [["id", "name", "amount", "accountName"]];
-    case "settings": return [["key", "value"]];
-    default: return [["data"]];
-  }
-}
+        function checkPassword() {
+            const input = document.getElementById('auth-password').value;
+            const correctPwd = window.state.settings.password || "1234";
+            if (input === correctPwd) {
+                document.getElementById('auth-screen').style.display = 'none';
+                document.getElementById('main-app').classList.remove('locked-content');
+            } else {
+                document.getElementById('auth-error').classList.remove('hidden');
+            }
+        }
+        window.checkPassword = checkPassword;
+
+        function togglePasswordVisibility() {
+            const pwdInput = document.getElementById('app-password');
+            const eyeIcon = document.getElementById('eye-icon');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                eyeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878l-4.242-4.242m4.242 4.242L5.232 5.232" />`;
+            } else {
+                pwdInput.type = 'password';
+                eyeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`;
+            }
+        }
+
+        function loadLocalData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                window.state = { ...window.state, ...parsed };
+                if (!window.state.settings.password) window.state.settings.password = "1234";
+                
+                if (document.getElementById('script-url')) document.getElementById('script-url').value = window.state.scriptUrl || '';
+                if (document.getElementById('salary')) document.getElementById('salary').value = window.state.settings.salary || 45000;
+                if (document.getElementById('savings-goal')) document.getElementById('savings-goal').value = window.state.settings.savingsGoal || 10000;
+                if (document.getElementById('app-password')) document.getElementById('app-password').value = window.state.settings.password;
+            }
+            updateUI();
+        }
+
+        function saveData() {
+            const urlInput = document.getElementById('script-url');
+            if (urlInput) window.state.scriptUrl = urlInput.value.trim();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.state));
+            updateUI();
+        }
+
+        async function pushAction(data) {
+            if (!window.state.scriptUrl) return;
+            try {
+                await fetch(window.state.scriptUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) });
+            } catch (e) { console.error(e); }
+        }
+
+        async function syncWithSheets(showNotify) {
+            if (!window.state.scriptUrl) return;
+            const statusEl = document.getElementById('sync-status');
+            if (statusEl) statusEl.classList.remove('hidden');
+            try {
+                const res = await fetch(window.state.scriptUrl);
+                const cloud = await res.json();
+                if (cloud) {
+                    window.state = { ...window.state, ...cloud };
+                    if (document.getElementById('salary')) document.getElementById('salary').value = window.state.settings.salary || 45000;
+                    if (document.getElementById('savings-goal')) document.getElementById('savings-goal').value = window.state.settings.savingsGoal || 10000;
+                    if (document.getElementById('app-password')) document.getElementById('app-password').value = window.state.settings.password || "1234";
+                    saveData();
+                    if (showNotify) alert("同步成功！");
+                }
+            } catch (e) { if (showNotify) alert("同步失敗。"); }
+            finally { if (statusEl) statusEl.classList.add('hidden'); }
+        }
+
+        function toggleModal(id) { 
+            const modal = document.getElementById(id);
+            if (modal) modal.classList.toggle('hidden');
+            if (id === 'account-modal') renderAccountList();
+            if (id === 'fixed-expense-modal') {
+                const el = document.getElementById('fixed-exp-account');
+                if (el) el.innerHTML = window.state.accounts.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+            }
+        }
+
+        async function addRecord(type) {
+            const p = type === 'expense' ? 'exp' : 'inc';
+            const nameInput = document.getElementById(`${p}-name`);
+            const amountInput = document.getElementById(`${p}-amount`);
+            const accEl = document.getElementById(`${p}-account`);
+            const dateEl = document.getElementById(`${p}-date`);
+            
+            if (!nameInput || !amountInput || !accEl || !dateEl) return;
+
+            const acc = accEl.value;
+            const date = dateEl.value;
+            const amount = parseFloat(amountInput.value) || 0;
+            const name = nameInput.value.trim();
+
+            if (amount <= 0 || !acc) return;
+            const record = {
+                id: Date.now(), type, name: name || '未命名', amount, date,
+                category: type === 'expense' ? document.getElementById('exp-category').value : 'INC',
+                accountName: acc,
+                paymentMethod: type === 'expense' ? document.getElementById('exp-payment').value : null
+            };
+            window.state.records.unshift(record);
+            updateUI();
+            await pushAction({ action: 'addRecord', data: record });
+            nameInput.value = '';
+            amountInput.value = '';
+        }
+
+        async function addTripRecord() {
+            const nameInput = document.getElementById('trip-item-name');
+            const amountInput = document.getElementById('trip-item-amount');
+            const catEl = document.getElementById('trip-item-category');
+            const accEl = document.getElementById('trip-item-account');
+            const dateEl = document.getElementById('trip-date');
+
+            if (!nameInput || !amountInput || !catEl || !accEl || !dateEl) return;
+
+            const name = nameInput.value.trim();
+            const amount = parseFloat(amountInput.value) || 0;
+            const cat = catEl.value;
+            const acc = accEl.value;
+            const date = dateEl.value;
+
+            if (!name || amount <= 0 || !acc) return;
+            const item = { id: Date.now(), type: 'trip', tripName: name, category: cat, amount, accountName: acc, date };
+            window.state.tripRecords.unshift(item);
+            updateUI();
+            await pushAction({ action: 'addTripRecord', data: item });
+            nameInput.value = '';
+            amountInput.value = '';
+        }
+
+        async function deleteRecord(id, type = 'normal') {
+            if (type === 'trip') window.state.tripRecords = window.state.tripRecords.filter(t => t.id != id);
+            else window.state.records = window.state.records.filter(r => r.id != id);
+            updateUI();
+            await pushAction({ action: 'deleteRecord', data: { id, type } });
+        }
+
+        async function addAccountCloud() {
+            const nameEl = document.getElementById('new-acc-name');
+            const balEl = document.getElementById('new-acc-balance');
+            const curEl = document.getElementById('new-acc-currency');
+            if (!nameEl || !balEl || !curEl) return;
+
+            const name = nameEl.value.trim();
+            const balance = parseFloat(balEl.value) || 0;
+            const currency = curEl.value;
+
+            if (!name) return;
+            const idx = window.state.accounts.findIndex(a => a.name === name);
+            if (idx > -1) window.state.accounts[idx] = { name, balance, currency };
+            else window.state.accounts.push({ name, balance, currency });
+            await pushAction({ action: 'updateAccounts', data: window.state.accounts });
+            toggleModal('account-modal');
+            updateUI();
+        }
+
+        function renderAccountList() {
+            const listEl = document.getElementById('modal-account-list');
+            if (listEl) {
+                listEl.innerHTML = window.state.accounts.map(a => `
+                    <div class="flex justify-between items-center bg-stone-50 p-2 rounded-lg text-[10px]">
+                        <span class="font-bold">${a.name} (${a.currency})</span>
+                        <button onclick="deleteAccountCloud('${a.name}')" class="text-red-400">刪除</button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function deleteAccountCloud(name) {
+            window.state.accounts = window.state.accounts.filter(a => a.name !== name);
+            await pushAction({ action: 'updateAccounts', data: window.state.accounts });
+            renderAccountList();
+            updateUI();
+        }
+
+        async function addFixedExpense() {
+            const nameEl = document.getElementById('fixed-exp-name');
+            const amtEl = document.getElementById('fixed-exp-amount');
+            const accEl = document.getElementById('fixed-exp-account');
+            if (!nameEl || !amtEl || !accEl) return;
+
+            const name = nameEl.value.trim();
+            const amount = parseFloat(amtEl.value) || 0;
+            const acc = accEl.value;
+
+            if (!name || amount <= 0) return;
+            window.state.fixedExpenses.push({ id: Date.now(), name, amount, accountName: acc });
+            toggleModal('fixed-expense-modal');
+            await pushAction({ action: 'updateFixedExpenses', data: window.state.fixedExpenses });
+            updateUI();
+        }
+
+        async function updateGlobalSettings() {
+            const salaryEl = document.getElementById('salary');
+            const goalEl = document.getElementById('savings-goal');
+            const pwdEl = document.getElementById('app-password');
+            
+            if (salaryEl) window.state.settings.salary = parseFloat(salaryEl.value) || 0;
+            if (goalEl) window.state.settings.savingsGoal = parseFloat(goalEl.value) || 0;
+            if (pwdEl) window.state.settings.password = pwdEl.value.trim() || "1234";
+            
+            saveData();
+            await pushAction({ action: 'updateSettings', data: window.state.settings });
+        }
+
+        function updateUI() {
+            const rate = window.state.settings.usdRate || 32.5;
+            const curMap = {};
+            window.state.accounts.forEach(a => { curMap[a.name] = a.currency; });
+
+            const balances = {};
+            window.state.accounts.forEach(a => { balances[a.name] = a.balance; });
+            
+            let totalIncomeTWD = window.state.settings.salary || 0;
+            let totalExpenseTWD = 0;
+            let jarSpendTWD = { NEC:0, FFA:0, LTSS:0, INT:0, PLAY:0 };
+
+            window.state.records.forEach(r => {
+                const currency = curMap[r.accountName];
+                const amtTWD = currency === 'USD' ? r.amount * rate : r.amount;
+                if (balances.hasOwnProperty(r.accountName)) {
+                    if (r.type === 'income') { 
+                        balances[r.accountName] += r.amount; 
+                        totalIncomeTWD += amtTWD; 
+                    } else { 
+                        balances[r.accountName] -= r.amount; 
+                        totalExpenseTWD += amtTWD; 
+                        if(jarSpendTWD.hasOwnProperty(r.category)) jarSpendTWD[r.category] += amtTWD;
+                    }
+                }
+            });
+
+            window.state.fixedExpenses.forEach(f => {
+                const currency = curMap[f.accountName];
+                const amtTWD = currency === 'USD' ? f.amount * rate : f.amount;
+                totalExpenseTWD += amtTWD;
+                jarSpendTWD.NEC += amtTWD; 
+                if (balances.hasOwnProperty(f.accountName)) balances[f.accountName] -= f.amount;
+            });
+
+            let totalTripTWD = 0;
+            window.state.tripRecords.forEach(t => {
+                const currency = curMap[t.accountName];
+                const amtTWD = currency === 'USD' ? t.amount * rate : t.amount;
+                totalTripTWD += amtTWD;
+                totalExpenseTWD += amtTWD;
+                if (balances.hasOwnProperty(t.accountName)) balances[t.accountName] -= t.amount;
+            });
+
+            let totalAssetsTWD = 0;
+            const accountsContainer = document.getElementById('accounts-container');
+            if (accountsContainer) {
+                accountsContainer.innerHTML = window.state.accounts.map(acc => {
+                    const amt = balances[acc.name] || 0;
+                    const twd = acc.currency === 'USD' ? amt * rate : amt;
+                    totalAssetsTWD += twd;
+                    return `
+                        <div class="bg-stone-50 p-4 rounded-xl border border-stone-100">
+                            <div class="text-[9px] text-stone-400 font-bold mb-1 uppercase">${acc.name}</div>
+                            <div class="font-bold text-stone-600">${acc.currency === 'USD' ? '$' : ''}${amt.toLocaleString()}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            const totalAssetsEl = document.getElementById('total-assets');
+            if (totalAssetsEl) totalAssetsEl.innerText = `$${Math.round(totalAssetsTWD).toLocaleString()}`;
+
+            const salary = window.state.settings.salary || 0;
+            const savings = window.state.settings.savingsGoal || 0;
+            const remainingForJar = salary - savings;
+            const jarLogic = [
+                { name: '生活必要', val: 0.60, spent: jarSpendTWD.NEC, id:'NEC', color: '#dccabd' },
+                { name: '財務自由', val: 0.15, spent: jarSpendTWD.FFA, id:'FFA', color: '#c5d3c1' },
+                { name: '長期儲蓄', val: savings, isFixed: true, spent: jarSpendTWD.LTSS, id:'LTSS', color: '#e5ddd3' },
+                { name: '興趣開支', val: 0.15, spent: jarSpendTWD.INT, id:'INT', color: '#b8a390' },
+                { name: '享樂休閒', val: 0.10, spent: jarSpendTWD.PLAY, id:'PLAY', color: '#a4b69c' }
+            ];
+
+            let consumable = 0;
+            const jarsContainer = document.getElementById('jars-container');
+            if (jarsContainer) {
+                jarsContainer.innerHTML = jarLogic.map(j => {
+                    const budget = j.isFixed ? j.val : Math.max(0, Math.floor(remainingForJar * j.val));
+                    const rem = budget - j.spent;
+                    if (j.id !== 'LTSS') consumable += rem;
+                    return `
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-stone-50">
+                            <div class="text-[9px] font-bold text-stone-400 mb-1 uppercase tracking-wider">${j.name}</div>
+                            <div class="text-lg font-black ${rem < 0 ? 'text-red-400' : 'text-stone-700'}">$${Math.round(rem).toLocaleString()}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            const monthlyTotalEl = document.getElementById('monthly-total');
+            if (monthlyTotalEl) monthlyTotalEl.innerText = `$${Math.round(consumable).toLocaleString()}`;
+
+            const accOptions = window.state.accounts.map(a => `<option value="${a.name}">${a.name} (${a.currency})</option>`).join('');
+            ['exp-account', 'inc-account', 'trip-item-account', 'fixed-exp-account'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.innerHTML = accOptions;
+            });
+
+            const renderRec = (r) => `
+                <div class="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-stone-600">${r.name}</span>
+                            ${r.paymentMethod ? `<span class="payment-tag">${r.paymentMethod}</span>` : ''}
+                        </div>
+                        <span class="text-[8px] text-stone-300">${r.date} · ${r.accountName}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-bold ${r.type === 'income' ? 'text-green-600' : 'text-stone-500'}">${r.type === 'income' ? '+' : '-'}${curMap[r.accountName] === 'USD' ? '$' : ''}${r.amount.toLocaleString()}</span>
+                        <button onclick="deleteRecord(${r.id})" class="text-stone-300 hover:text-red-400">✕</button>
+                    </div>
+                </div>
+            `;
+            const expListEl = document.getElementById('record-list-expense');
+            if (expListEl) expListEl.innerHTML = window.state.records.filter(r => r.type === 'expense').map(renderRec).join('');
+            const incListEl = document.getElementById('record-list-income');
+            if (incListEl) incListEl.innerHTML = window.state.records.filter(r => r.type === 'income').map(renderRec).join('');
+
+            const tripSummaryEl = document.getElementById('trip-total-summary');
+            if (tripSummaryEl) tripSummaryEl.innerText = `旅行支出: $${Math.round(totalTripTWD).toLocaleString()}`;
+            
+            const tripListEl = document.getElementById('trip-records-list');
+            if (tripListEl) {
+                tripListEl.innerHTML = window.state.tripRecords.map(t => `
+                    <div class="bg-white p-4 rounded-2xl border border-[#e5ddd3] relative group shadow-sm">
+                        <button onclick="deleteRecord(${t.id}, 'trip')" class="absolute top-2 right-2 text-stone-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition">✕</button>
+                        <div class="text-[10px] font-bold text-stone-600 mb-1">${t.tripName} (${t.category})</div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-[8px] text-stone-300">${t.date}</span>
+                            <span class="text-sm font-black text-[#8c7e6e]">${curMap[t.accountName] === 'USD' ? '$' : ''}${t.amount.toLocaleString()}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            const totalJarSpent = jarLogic.reduce((acc, curr) => acc + curr.spent, 0);
+            const netBalance = totalIncomeTWD - totalExpenseTWD;
+
+            let currentDeg = 0;
+            const conicParts = jarLogic.filter(j => j.spent > 0).map(j => {
+                const deg = (j.spent / totalJarSpent) * 360;
+                const part = `${j.color} ${currentDeg}deg ${currentDeg + deg}deg`;
+                currentDeg += deg;
+                return part;
+            });
+            const conicGradient = conicParts.length > 0 ? `conic-gradient(${conicParts.join(', ')})` : '#f3ede6';
+
+            const statsTarget = document.getElementById('stats-render-target');
+            if (statsTarget) {
+                statsTarget.innerHTML = `
+                    <div class="stat-card">
+                        <h4 class="text-[10px] font-bold text-stone-400 mb-3 uppercase">月度收支總結</h4>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center p-3 bg-green-50 rounded-xl">
+                                <span class="text-xs text-green-700 font-bold">當月總收入</span>
+                                <span class="text-lg font-black text-green-600">$${Math.round(totalIncomeTWD).toLocaleString()}</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-red-50 rounded-xl">
+                                <span class="text-xs text-red-700 font-bold">當月總支出</span>
+                                <span class="text-lg font-black text-red-400">$${Math.round(totalExpenseTWD).toLocaleString()}</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 ${netBalance < 0 ? 'bg-orange-50' : 'bg-amber-50'} rounded-xl border border-dashed ${netBalance < 0 ? 'border-red-200' : 'border-amber-200'}">
+                                <span class="text-xs ${netBalance < 0 ? 'text-red-600' : 'text-amber-700'} font-bold">${netBalance < 0 ? '當月超支' : '當月盈餘'}</span>
+                                <span class="text-lg font-black ${netBalance < 0 ? 'text-red-500' : 'text-amber-600'}">$${Math.abs(Math.round(netBalance)).toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <h4 class="text-[10px] font-bold text-stone-400 mb-4 uppercase">5 個儲蓄罐支出構成比</h4>
+                        <div class="flex flex-col items-center gap-6">
+                            <div class="pie-chart" style="background: ${conicGradient}"></div>
+                            <div class="w-full space-y-2">
+                                ${jarLogic.map(j => {
+                                    const p = totalJarSpent > 0 ? Math.round((j.spent/totalJarSpent)*100) : 0;
+                                    return `
+                                        <div class="bg-stone-50 p-3 rounded-xl">
+                                            <div class="flex justify-between items-center mb-1">
+                                                <span class="flex items-center gap-2 text-xs font-bold text-stone-600">
+                                                    <span class="w-2.5 h-2.5 rounded-full" style="background: ${j.color}"></span>
+                                                    ${j.name}
+                                                </span>
+                                                <span class="text-xs font-bold text-[#b8a390]">${p}%</span>
+                                            </div>
+                                            <div class="flex justify-between text-[10px] text-stone-400">
+                                                <span>當月支出</span>
+                                                <span class="font-bold text-stone-500">$${Math.round(j.spent).toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function switchTab(tab) {
+            ['expense', 'income', 'trip', 'stats'].forEach(t => {
+                const formEl = document.getElementById(`form-${t}`);
+                if (formEl) formEl.classList.toggle('hidden', t !== tab);
+                
+                const btn = document.getElementById(`tab-${t}`);
+                if (btn) {
+                    if (t === tab) { 
+                        btn.classList.add('border-b-2', 'border-[#b8a390]', 'text-stone-600'); 
+                        btn.classList.remove('text-stone-300'); 
+                    } else { 
+                        btn.classList.remove('border-b-2', 'border-[#b8a390]', 'text-stone-600'); 
+                        btn.classList.add('text-stone-300'); 
+                    }
+                }
+            });
+        }
+        window.switchTab = switchTab;
+        window.deleteRecord = deleteRecord;
+        window.toggleModal = toggleModal;
+        window.addRecord = addRecord;
+        window.addTripRecord = addTripRecord;
+        window.addAccountCloud = addAccountCloud;
+        window.deleteAccountCloud = deleteAccountCloud;
+        window.addFixedExpense = addFixedExpense;
+        window.updateGlobalSettings = updateGlobalSettings;
+        window.syncWithSheets = syncWithSheets;
+        window.togglePasswordVisibility = togglePasswordVisibility;
+        window.saveData = saveData;
+    </script>
+</body>
+</html>
