@@ -263,11 +263,26 @@
                                 <option value="交通">交通</option>
                                 <option value="住宿">住宿</option>
                                 <option value="購物">購物</option>
+                                <option value="機票">機票</option>
+                                <option value="其他">其他</option>
                             </select>
                         </div>
-                        <div class="grid grid-cols-2 gap-2">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <select id="trip-item-account" class="p-3 input-style text-[11px]"></select>
-                            <input type="number" id="trip-item-amount" placeholder="金額" class="w-full p-3 input-style text-sm font-bold">
+                            
+                            <!-- 💡 新增的幣別選單與金額組合 -->
+                            <div class="flex gap-1">
+                                <select id="trip-currency" class="w-2/5 p-3 input-style text-[10px] font-bold text-stone-600 border-r-0 rounded-r-none">
+                                    <option value="TWD">TWD</option>
+                                    <option value="JPY">JPY</option>
+                                    <option value="USD">USD</option>
+                                    <option value="KRW">KRW</option>
+                                    <option value="EUR">EUR</option>
+                                    <option value="HKD">HKD</option>
+                                    <option value="THB">THB</option>
+                                </select>
+                                <input type="number" id="trip-item-amount" placeholder="金額" class="w-3/5 p-3 input-style text-sm font-bold rounded-l-none">
+                            </div>
                         </div>
                         <button onclick="addTripRecord()" class="w-full milktea-gradient-brown text-[#5d5245] py-3 rounded-xl font-bold">新增旅行紀錄</button>
                     </div>
@@ -357,7 +372,7 @@
             accounts: [],
             fixedExpenses: [],
             tripRecords: [], 
-            settings: { salary: 45000, savingsGoal: 10000, usdRate: 32.5, password: "1234" },
+            settings: { salary: 45000, savingsGoal: 10000, usdRate: 32.5, password: "1234", rates: null },
             scriptUrl: ''
         };
 
@@ -373,15 +388,19 @@
 
         async function fetchLiveRate() {
             try {
+                // 💡 取得所有全球貨幣的即時匯率，以便旅行記帳自動換算
                 const res = await fetch('https://open.er-api.com/v6/latest/USD');
                 const data = await res.json();
-                if (data?.rates?.TWD) {
-                    window.state.settings.usdRate = parseFloat(data.rates.TWD.toFixed(2));
-                    const rateEl = document.getElementById('usd-rate');
-                    if (rateEl) rateEl.value = window.state.settings.usdRate;
-                    updateUI();
+                if (data?.rates) {
+                    window.state.settings.rates = data.rates; // 儲存所有匯率表
+                    if (data.rates.TWD) {
+                        window.state.settings.usdRate = parseFloat(data.rates.TWD.toFixed(2));
+                        const rateEl = document.getElementById('usd-rate');
+                        if (rateEl) rateEl.value = window.state.settings.usdRate;
+                    }
+                    updateUI(); // 拿到最新匯率後重新計算 UI
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("獲取匯率失敗", e); }
         }
 
         function checkPassword() {
@@ -426,7 +445,6 @@
         function saveData() {
             const urlInput = document.getElementById('script-url');
             if (urlInput) window.state.scriptUrl = urlInput.value.trim();
-            // 同步將資料寫入瀏覽器本地端，避免重新整理後資料消失
             localStorage.setItem(STORAGE_KEY, JSON.stringify(window.state));
             updateUI();
         }
@@ -501,6 +519,7 @@
             const catEl = document.getElementById('trip-item-category');
             const accEl = document.getElementById('trip-item-account');
             const dateEl = document.getElementById('trip-date');
+            const currEl = document.getElementById('trip-currency'); // 💡 取得選擇的外幣
 
             if (!nameInput || !amountInput || !catEl || !accEl || !dateEl) return;
 
@@ -509,9 +528,13 @@
             const cat = catEl.value;
             const acc = accEl.value;
             const date = dateEl.value;
+            const currency = currEl ? currEl.value : 'TWD'; // 💡 附加外幣資訊
 
             if (!name || amount <= 0 || !acc) return;
-            const item = { id: Date.now(), type: 'trip', tripName: name, category: cat, amount, accountName: acc, date };
+            
+            // 💡 將 currency 存入 JSON state 中
+            const item = { id: Date.now(), type: 'trip', tripName: name, category: cat, amount, accountName: acc, date, currency };
+            
             window.state.tripRecords.unshift(item);
             saveData();
             await pushAction({ action: 'addTripRecord', data: item });
@@ -604,15 +627,12 @@
 
             if (!name || amount <= 0) return;
             
-            // 將新項目加入 state
             window.state.fixedExpenses.push({ id: Date.now(), name, amount, accountName: acc });
             
-            // 關閉視窗、儲存並更新畫面
             toggleModal('fixed-expense-modal');
             saveData();
             await pushAction({ action: 'updateFixedExpenses', data: window.state.fixedExpenses });
             
-            // 清空輸入框以利下次填寫
             nameEl.value = '';
             amtEl.value = '';
         }
@@ -638,6 +658,8 @@
 
         function updateUI() {
             const rate = window.state.settings.usdRate || 32.5;
+            const apiRates = window.state.settings.rates; // 💡 取得所有匯率
+            
             const curMap = {};
             window.state.accounts.forEach(a => { curMap[a.name] = a.currency; });
 
@@ -679,11 +701,29 @@
 
             let totalTripTWD = 0;
             window.state.tripRecords.forEach(t => {
-                const currency = curMap[t.accountName];
-                const amtTWD = currency === 'USD' ? t.amount * rate : t.amount;
+                const accCurrency = curMap[t.accountName] || 'TWD';
+                const tripCurr = t.currency || 'TWD'; // 若為舊資料預設為 TWD
+                
+                let amtTWD = t.amount;
+                let deductAmt = t.amount;
+
+                // 💡 智慧換算：如果我們有全球匯率表，自動把您記的外幣轉換成 TWD 加總，並且用正確比例扣除帳戶餘額
+                if (apiRates && apiRates[tripCurr] && apiRates.TWD) {
+                    // 將外幣換算成台幣 (用於總統計)
+                    amtTWD = (t.amount / apiRates[tripCurr]) * apiRates.TWD;
+                    // 將外幣換算成該帳戶的幣別 (用於精準扣款，即使您用 USD 帳戶付 JPY 也能完美扣款)
+                    deductAmt = (t.amount / apiRates[tripCurr]) * apiRates[accCurrency];
+                } else {
+                    // 若無網路/無匯率資料，採用舊有單純以帳戶判斷的邏輯
+                    if (tripCurr === 'USD' && accCurrency === 'TWD') {
+                        amtTWD = t.amount * rate;
+                        deductAmt = t.amount * rate;
+                    }
+                }
+
                 totalTripTWD += amtTWD;
                 totalExpenseTWD += amtTWD;
-                if (balances.hasOwnProperty(t.accountName)) balances[t.accountName] -= t.amount;
+                if (balances.hasOwnProperty(t.accountName)) balances[t.accountName] -= deductAmt;
             });
 
             let totalAssetsTWD = 0;
@@ -696,7 +736,7 @@
                     return `
                         <div class="bg-stone-50 p-4 rounded-xl border border-stone-100">
                             <div class="text-[9px] text-stone-400 font-bold mb-1 uppercase">${acc.name}</div>
-                            <div class="font-bold text-stone-600">${acc.currency === 'USD' ? '$' : ''}${amt.toLocaleString()}</div>
+                            <div class="font-bold text-stone-600">${acc.currency === 'USD' ? '$' : ''}${Math.round(amt).toLocaleString()}</div>
                         </div>
                     `;
                 }).join('');
@@ -704,7 +744,6 @@
             const totalAssetsEl = document.getElementById('total-assets');
             if (totalAssetsEl) totalAssetsEl.innerText = `$${Math.round(totalAssetsTWD).toLocaleString()}`;
 
-            // === 修正：渲染固定支出列表 ===
             const fixedExpensesListEl = document.getElementById('fixed-expenses-list');
             if (fixedExpensesListEl) {
                 if (window.state.fixedExpenses.length === 0) {
@@ -724,7 +763,6 @@
                     `).join('');
                 }
             }
-            // ==================================
 
             const salary = window.state.settings.salary || 0;
             const savings = window.state.settings.savingsGoal || 0;
@@ -808,16 +846,30 @@
             
             const tripListEl = document.getElementById('trip-records-list');
             if (tripListEl) {
-                tripListEl.innerHTML = window.state.tripRecords.map(t => `
+                tripListEl.innerHTML = window.state.tripRecords.map(t => {
+                    const tripCurr = t.currency || 'TWD';
+                    let displayAmt = `${tripCurr} ${t.amount.toLocaleString()}`;
+                    let subTextHtml = '';
+                    
+                    // 💡 如果是外幣，而且系統有成功抓到匯率，就在旁邊貼心顯示大約的台幣金額
+                    if (tripCurr !== 'TWD' && apiRates && apiRates[tripCurr]) {
+                        const twdEquiv = (t.amount / apiRates[tripCurr]) * apiRates.TWD;
+                        subTextHtml = `<span class="text-[9px] text-stone-400 font-normal ml-1 whitespace-nowrap">(約 NT$${Math.round(twdEquiv).toLocaleString()})</span>`;
+                    } else if (tripCurr === 'TWD') {
+                        displayAmt = `$${t.amount.toLocaleString()}`; // 台幣保持簡單的 $
+                    }
+
+                    return `
                     <div class="bg-white p-4 rounded-2xl border border-[#e5ddd3] relative group shadow-sm">
                         <button onclick="deleteRecord(${t.id}, 'trip')" class="absolute top-2 right-2 text-stone-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition">✕</button>
                         <div class="text-[10px] font-bold text-stone-600 mb-1">${t.tripName} (${t.category})</div>
-                        <div class="flex justify-between items-end">
-                            <span class="text-[8px] text-stone-300">${t.date}</span>
-                            <span class="text-sm font-black text-[#8c7e6e]">${curMap[t.accountName] === 'USD' ? '$' : ''}${t.amount.toLocaleString()}</span>
+                        <div class="flex justify-between items-end flex-wrap">
+                            <span class="text-[8px] text-stone-300">${t.date} · 由 ${t.accountName} 扣除</span>
+                            <span class="text-sm font-black text-[#8c7e6e] mt-1">${displayAmt} ${subTextHtml}</span>
                         </div>
                     </div>
-                `).join('');
+                    `
+                }).join('');
             }
 
             const totalJarSpent = jarLogic.reduce((acc, curr) => acc + curr.spent, 0);
