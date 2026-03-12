@@ -666,7 +666,8 @@
             const balances = {};
             window.state.accounts.forEach(a => { balances[a.name] = a.balance; });
             
-            let totalIncomeTWD = window.state.settings.salary || 0;
+            // 💡 修正：不再自動加上預設薪水，全憑手動記帳，初始設定為 0
+            let totalIncomeTWD = 0; 
             let totalExpenseTWD = 0;
             let jarSpendTWD = { NEC:0, FFA:0, LTSS:0, INT:0, PLAY:0 };
 
@@ -676,7 +677,7 @@
                 if (balances.hasOwnProperty(r.accountName)) {
                     if (r.type === 'income') { 
                         balances[r.accountName] += r.amount; 
-                        totalIncomeTWD += amtTWD; 
+                        totalIncomeTWD += amtTWD; // 💡 這裡會根據手動增加的收入紀錄累加
                     } else if (r.type === 'expense') { 
                         balances[r.accountName] -= r.amount; 
                         totalExpenseTWD += amtTWD; 
