@@ -120,9 +120,9 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div class="lg:col-span-8">
-                <div class="bg-white rounded-2xl p-6 mb-6 border border-stone-100 shadow-sm">
+                <div class="bg-white rounded-2xl p-6 mb-8 border border-stone-100 shadow-sm">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xs font-bold text-stone-400 tracking-widest uppercase">帳戶資產管理</h3>
+                        <h3 class="text-xs font-bold text-stone-400 tracking-widest uppercase">帳戶資產管理 (總結)</h3>
                         <div class="flex items-center gap-3">
                             <div class="flex flex-col items-end">
                                 <div class="flex items-center gap-1 text-[10px] text-stone-400">
@@ -138,6 +138,12 @@
                         <span class="text-xs text-stone-400 tracking-widest">總資產淨值 (TWD)</span>
                         <span class="text-xl font-black text-stone-700" id="total-assets">$0</span>
                     </div>
+                </div>
+
+                <!-- 💡 新增：月份選擇器 -->
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-black text-stone-700 tracking-widest border-l-4 border-[#b8a390] pl-3">月度收支與預算</h2>
+                    <input type="month" id="view-month" class="p-2 input-style text-sm font-bold text-stone-600 shadow-sm" onchange="updateUI()">
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -178,7 +184,7 @@
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            旅行明細 (統計已排除)
+                            本月旅行明細 (統計已排除)
                         </h3>
                         <span id="trip-total-summary" class="text-[10px] font-bold text-[#b8a390] bg-white px-3 py-1 rounded-full border border-[#e5ddd3]">旅行支出: $0</span>
                     </div>
@@ -186,7 +192,7 @@
                 </div>
             </div>
 
-            <div class="lg:col-span-4">
+            <div class="lg:col-span-4 mt-12 lg:mt-0">
                 <div class="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm h-full flex flex-col">
                     <div class="flex mb-6 border-b border-stone-100">
                         <button onclick="switchTab('expense')" id="tab-expense" class="tab-btn flex-1 py-2 text-[11px] font-bold border-b-2 border-[#b8a390]">支出</button>
@@ -270,7 +276,6 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <select id="trip-item-account" class="p-3 input-style text-[11px]"></select>
                             
-                            <!-- 💡 新增的幣別選單與金額組合 -->
                             <div class="flex gap-1">
                                 <select id="trip-currency" class="w-2/5 p-3 input-style text-[10px] font-bold text-stone-600 border-r-0 rounded-r-none">
                                     <option value="TWD">TWD</option>
@@ -289,7 +294,6 @@
 
                     <div id="form-adjustment" class="space-y-4 mb-6 hidden">
                         <div class="p-3 bg-[#f3ede6] rounded-xl border border-[#e5ddd3] mb-2">
-                            <!-- 💡 修改提示文字 -->
                             <p class="text-[10px] text-[#8c7e6e] font-bold leading-relaxed">💡 這裡的紀錄會改變「帳戶餘額」與總資產，但不計入當月的收支統計。適合用來記錄「繳信用卡費」或「帳戶間資金轉移」。</p>
                         </div>
                         <div class="flex flex-col">
@@ -378,28 +382,36 @@
         };
 
         window.onload = function() {
-            const today = new Date().toISOString().split('T')[0];
+            const todayIso = new Date().toISOString();
+            const today = todayIso.split('T')[0];
+            const currentMonth = todayIso.substring(0, 7); // 取得 YYYY-MM
+            
+            // 設定各表單預設日期為今天
             ['exp-date', 'inc-date', 'trip-date', 'adj-date'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) el.value = today;
             });
+            
+            // 💡 設定月份選擇器預設為當前月份
+            const viewMonthEl = document.getElementById('view-month');
+            if(viewMonthEl) viewMonthEl.value = currentMonth;
+
             loadLocalData();
             fetchLiveRate();
         };
 
         async function fetchLiveRate() {
             try {
-                // 💡 取得所有全球貨幣的即時匯率，以便旅行記帳自動換算
                 const res = await fetch('https://open.er-api.com/v6/latest/USD');
                 const data = await res.json();
                 if (data?.rates) {
-                    window.state.settings.rates = data.rates; // 儲存所有匯率表
+                    window.state.settings.rates = data.rates; 
                     if (data.rates.TWD) {
                         window.state.settings.usdRate = parseFloat(data.rates.TWD.toFixed(2));
                         const rateEl = document.getElementById('usd-rate');
                         if (rateEl) rateEl.value = window.state.settings.usdRate;
                     }
-                    updateUI(); // 拿到最新匯率後重新計算 UI
+                    updateUI(); 
                 }
             } catch (e) { console.error("獲取匯率失敗", e); }
         }
@@ -520,7 +532,7 @@
             const catEl = document.getElementById('trip-item-category');
             const accEl = document.getElementById('trip-item-account');
             const dateEl = document.getElementById('trip-date');
-            const currEl = document.getElementById('trip-currency'); // 💡 取得選擇的外幣
+            const currEl = document.getElementById('trip-currency');
 
             if (!nameInput || !amountInput || !catEl || !accEl || !dateEl) return;
 
@@ -529,11 +541,10 @@
             const cat = catEl.value;
             const acc = accEl.value;
             const date = dateEl.value;
-            const currency = currEl ? currEl.value : 'TWD'; // 💡 附加外幣資訊
+            const currency = currEl ? currEl.value : 'TWD';
 
             if (!name || amount <= 0 || !acc) return;
             
-            // 💡 將 currency 存入 JSON state 中
             const item = { id: Date.now(), type: 'trip', tripName: name, category: cat, amount, accountName: acc, date, currency };
             
             window.state.tripRecords.unshift(item);
@@ -659,15 +670,18 @@
 
         function updateUI() {
             const rate = window.state.settings.usdRate || 32.5;
-            const apiRates = window.state.settings.rates; // 💡 取得所有匯率
+            const apiRates = window.state.settings.rates; 
             
+            // 💡 取得當前選擇的月份 (YYYY-MM)，預設為當天所屬月份
+            const viewMonthEl = document.getElementById('view-month');
+            const viewMonth = viewMonthEl ? viewMonthEl.value : new Date().toISOString().substring(0, 7);
+
             const curMap = {};
             window.state.accounts.forEach(a => { curMap[a.name] = a.currency; });
 
             const balances = {};
             window.state.accounts.forEach(a => { balances[a.name] = a.balance; });
             
-            // 💡 修正：不再自動加上預設薪水，全憑手動記帳，初始設定為 0
             let totalIncomeTWD = 0; 
             let totalExpenseTWD = 0;
             let jarSpendTWD = { NEC:0, FFA:0, LTSS:0, INT:0, PLAY:0 };
@@ -675,16 +689,14 @@
             window.state.records.forEach(r => {
                 const currency = curMap[r.accountName];
                 const amtTWD = currency === 'USD' ? r.amount * rate : r.amount;
+                
+                // 1. 【計算帳戶餘額】所有時間的紀錄都會影響帳戶餘額與總資產
                 if (balances.hasOwnProperty(r.accountName)) {
                     if (r.type === 'income') { 
                         balances[r.accountName] += r.amount; 
-                        totalIncomeTWD += amtTWD; 
                     } else if (r.type === 'expense') { 
                         balances[r.accountName] -= r.amount; 
-                        totalExpenseTWD += amtTWD; 
-                        if(jarSpendTWD.hasOwnProperty(r.category)) jarSpendTWD[r.category] += amtTWD;
                     } else if (r.type === 'adjustment') {
-                        // 💡 調整功能：確實改變帳戶餘額，但不增加到 totalIncomeTWD 也不加到 totalExpenseTWD 中！
                         if (r.adjType === 'plus') {
                             balances[r.accountName] += r.amount;
                         } else {
@@ -692,44 +704,50 @@
                         }
                     }
                 }
+
+                // 2. 【計算當月收支】只有符合選擇月份的紀錄，才會進入收支與儲蓄罐統計
+                if (r.date.startsWith(viewMonth)) {
+                    if (r.type === 'income') {
+                        totalIncomeTWD += amtTWD;
+                    } else if (r.type === 'expense') {
+                        totalExpenseTWD += amtTWD;
+                        if(jarSpendTWD.hasOwnProperty(r.category)) jarSpendTWD[r.category] += amtTWD;
+                    }
+                }
             });
 
             window.state.fixedExpenses.forEach(f => {
                 const currency = curMap[f.accountName];
                 const amtTWD = currency === 'USD' ? f.amount * rate : f.amount;
+                
+                // 固定支出會扣除全局帳戶餘額
+                if (balances.hasOwnProperty(f.accountName)) balances[f.accountName] -= f.amount;
+                
+                // 固定支出視為每個月都會發生的開銷，因此一定會算入所選月份的當月支出
                 totalExpenseTWD += amtTWD;
                 jarSpendTWD.NEC += amtTWD; 
-                if (balances.hasOwnProperty(f.accountName)) balances[f.accountName] -= f.amount;
             });
 
             let totalTripTWD = 0;
             window.state.tripRecords.forEach(t => {
-                const accCurrency = curMap[t.accountName] || 'TWD';
-                const tripCurr = t.currency || 'TWD'; // 若為舊資料預設為 TWD
-                
+                const tripCurr = t.currency || 'TWD';
                 let amtTWD = t.amount;
-                let deductAmt = t.amount;
 
-                // 💡 智慧換算：如果我們有全球匯率表，自動把您記的外幣轉換成 TWD 加總，並且用正確比例扣除帳戶餘額
                 if (apiRates && apiRates[tripCurr] && apiRates.TWD) {
-                    // 將外幣換算成台幣 (用於總統計)
                     amtTWD = (t.amount / apiRates[tripCurr]) * apiRates.TWD;
-                    // 將外幣換算成該帳戶的幣別 (用於精準扣款，即使您用 USD 帳戶付 JPY 也能完美扣款)
-                    deductAmt = (t.amount / apiRates[tripCurr]) * apiRates[accCurrency];
                 } else {
-                    // 若無網路/無匯率資料，採用舊有單純以帳戶判斷的邏輯
-                    if (tripCurr === 'USD' && accCurrency === 'TWD') {
+                    if (tripCurr === 'USD') {
                         amtTWD = t.amount * rate;
-                        deductAmt = t.amount * rate;
                     }
                 }
 
-                totalTripTWD += amtTWD;
-                // 💡 根據您的需求取消旅行的總支出與帳戶餘額扣除，將旅行改為「純明細紀錄」
-                // totalExpenseTWD += amtTWD;
-                // if (balances.hasOwnProperty(t.accountName)) balances[t.accountName] -= deductAmt;
+                // 旅行紀錄只統計當月的總額
+                if (t.date.startsWith(viewMonth)) {
+                    totalTripTWD += amtTWD;
+                }
             });
 
+            // --- 渲染總資產 ---
             let totalAssetsTWD = 0;
             const accountsContainer = document.getElementById('accounts-container');
             if (accountsContainer) {
@@ -748,6 +766,7 @@
             const totalAssetsEl = document.getElementById('total-assets');
             if (totalAssetsEl) totalAssetsEl.innerText = `$${Math.round(totalAssetsTWD).toLocaleString()}`;
 
+            // --- 渲染固定支出列表 ---
             const fixedExpensesListEl = document.getElementById('fixed-expenses-list');
             if (fixedExpensesListEl) {
                 if (window.state.fixedExpenses.length === 0) {
@@ -768,6 +787,7 @@
                 }
             }
 
+            // --- 渲染儲蓄罐與本月可用金額 ---
             const salary = window.state.settings.salary || 0;
             const savings = window.state.settings.savingsGoal || 0;
             const remainingForJar = salary - savings;
@@ -800,11 +820,16 @@
             const monthlyTotalEl = document.getElementById('monthly-total');
             if (monthlyTotalEl) monthlyTotalEl.innerText = `$${Math.round(consumable).toLocaleString()}`;
 
+            // --- 渲染帳戶選單 ---
             const accOptions = window.state.accounts.map(a => `<option value="${a.name}">${a.name} (${a.currency})</option>`).join('');
             ['exp-account', 'inc-account', 'trip-item-account', 'fixed-exp-account', 'adj-account'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) el.innerHTML = accOptions;
             });
+
+            // 💡 提取並渲染【當月】的各項明細列表
+            const filteredRecords = window.state.records.filter(r => r.date.startsWith(viewMonth));
+            const filteredTrips = window.state.tripRecords.filter(t => t.date.startsWith(viewMonth));
 
             const renderRec = (r) => `
                 <div class="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
@@ -822,13 +847,13 @@
                 </div>
             `;
             const expListEl = document.getElementById('record-list-expense');
-            if (expListEl) expListEl.innerHTML = window.state.records.filter(r => r.type === 'expense').map(renderRec).join('');
+            if (expListEl) expListEl.innerHTML = filteredRecords.filter(r => r.type === 'expense').map(renderRec).join('');
             const incListEl = document.getElementById('record-list-income');
-            if (incListEl) incListEl.innerHTML = window.state.records.filter(r => r.type === 'income').map(renderRec).join('');
+            if (incListEl) incListEl.innerHTML = filteredRecords.filter(r => r.type === 'income').map(renderRec).join('');
 
             const adjListEl = document.getElementById('record-list-adjustment');
             if (adjListEl) {
-                adjListEl.innerHTML = window.state.records.filter(r => r.type === 'adjustment').map(r => `
+                adjListEl.innerHTML = filteredRecords.filter(r => r.type === 'adjustment').map(r => `
                     <div class="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
                         <div class="flex flex-col">
                             <div class="flex items-center gap-2">
@@ -846,21 +871,20 @@
             }
 
             const tripSummaryEl = document.getElementById('trip-total-summary');
-            if (tripSummaryEl) tripSummaryEl.innerText = `旅行支出: $${Math.round(totalTripTWD).toLocaleString()}`;
+            if (tripSummaryEl) tripSummaryEl.innerText = `當月旅行支出: $${Math.round(totalTripTWD).toLocaleString()}`;
             
             const tripListEl = document.getElementById('trip-records-list');
             if (tripListEl) {
-                tripListEl.innerHTML = window.state.tripRecords.map(t => {
+                tripListEl.innerHTML = filteredTrips.map(t => {
                     const tripCurr = t.currency || 'TWD';
                     let displayAmt = `${tripCurr} ${t.amount.toLocaleString()}`;
                     let subTextHtml = '';
                     
-                    // 💡 如果是外幣，而且系統有成功抓到匯率，就在旁邊貼心顯示大約的台幣金額
                     if (tripCurr !== 'TWD' && apiRates && apiRates[tripCurr]) {
                         const twdEquiv = (t.amount / apiRates[tripCurr]) * apiRates.TWD;
                         subTextHtml = `<span class="text-[9px] text-stone-400 font-normal ml-1 whitespace-nowrap">(約 NT$${Math.round(twdEquiv).toLocaleString()})</span>`;
                     } else if (tripCurr === 'TWD') {
-                        displayAmt = `$${t.amount.toLocaleString()}`; // 台幣保持簡單的 $
+                        displayAmt = `$${t.amount.toLocaleString()}`; 
                     }
 
                     return `
@@ -876,6 +900,7 @@
                 }).join('');
             }
 
+            // --- 渲染當月統計圖表 ---
             const totalJarSpent = jarLogic.reduce((acc, curr) => acc + curr.spent, 0);
             const netBalance = totalIncomeTWD - totalExpenseTWD;
 
@@ -892,7 +917,7 @@
             if (statsTarget) {
                 statsTarget.innerHTML = `
                     <div class="stat-card">
-                        <h4 class="text-[10px] font-bold text-stone-400 mb-3 uppercase">月度收支總結</h4>
+                        <h4 class="text-[10px] font-bold text-stone-400 mb-3 uppercase">月度收支總結 (${viewMonth})</h4>
                         <div class="space-y-3">
                             <div class="flex justify-between items-center p-3 bg-green-50 rounded-xl">
                                 <span class="text-xs text-green-700 font-bold">當月總收入</span>
