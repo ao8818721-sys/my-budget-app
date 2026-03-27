@@ -65,7 +65,6 @@
     </style>
 </head>
 <body class="p-4 md:p-8">
-    <!-- 密碼鎖定畫面 -->
     <div id="auth-screen" class="fixed inset-0 z-[100] bg-[#fcfaf7] flex flex-col items-center justify-center p-6 text-center">
         <div class="mb-8">
             <div class="w-16 h-16 milktea-gradient rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -83,7 +82,6 @@
         </div>
     </div>
 
-    <!-- 主程式內容 -->
     <div id="main-app" class="max-w-6xl mx-auto locked-content">
         <div class="mb-6">
             <h1 class="text-3xl font-black tracking-widest text-stone-700">理財記帳簿</h1>
@@ -92,8 +90,7 @@
 
         <header class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
             <div class="lg:col-span-8 flex items-center">
-                <!-- 歡迎詞已移除 -->
-            </div>
+                </div>
             
             <div class="lg:col-span-4 flex flex-col gap-3 bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
                 <div class="flex flex-col gap-1">
@@ -140,10 +137,14 @@
                     </div>
                 </div>
 
-                <!-- 💡 新增：月份選擇器 -->
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-black text-stone-700 tracking-widest border-l-4 border-[#b8a390] pl-3">月度收支與預算</h2>
-                    <input type="month" id="view-month" class="p-2 input-style text-sm font-bold text-stone-600 shadow-sm" onchange="updateUI()">
+                    <!-- 💡 更新：改成我們自訂的按鈕，並隱藏原本的 input -->
+                    <input type="hidden" id="view-month">
+                    <button onclick="openMonthPickerModal()" id="view-month-btn" class="p-2 px-4 input-style text-sm font-bold text-stone-600 shadow-sm flex items-center gap-2 hover:bg-white transition">
+                        <span id="view-month-display">載入中...</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[#b8a390]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -166,8 +167,7 @@
                             <button onclick="toggleModal('fixed-expense-modal')" class="text-[10px] text-stone-400 hover:text-[#b8a390]">+ 新增</button>
                         </div>
                         <div id="fixed-expenses-list" class="space-y-2 max-h-32 overflow-y-auto pr-1">
-                            <!-- 固定支出項目會顯示在這裡 -->
-                        </div>
+                            </div>
                     </div>
                 </div>
 
@@ -225,13 +225,11 @@
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <div class="flex flex-col">
-                                <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">支付方式</label>
-                                <select id="exp-payment" class="p-3 input-style text-[11px]">
-                                    <option value="現金">現金</option>
-                                    <option value="CUBE">CUBE</option>
-                                    <option value="LinePay">LinePay</option>
-                                    <option value="銀行轉帳">銀行轉帳</option>
-                                </select>
+                                <div class="flex justify-between items-center mb-1 ml-1">
+                                    <label class="text-[9px] text-stone-400 font-bold">支付方式</label>
+                                    <button onclick="openPaymentModal()" class="text-[9px] text-stone-400 hover:text-[#b8a390] transition">+ 新增</button>
+                                </div>
+                                <select id="exp-payment" class="p-3 input-style text-[11px]"></select>
                             </div>
                             <div class="flex flex-col">
                                 <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">帳戶</label>
@@ -330,7 +328,6 @@
         </div>
     </div>
 
-    <!-- Modals -->
     <div id="account-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
             <h3 class="text-lg font-bold text-stone-700 mb-4">帳戶管理</h3>
@@ -369,15 +366,64 @@
         </div>
     </div>
 
+    <!-- 💡 新增的支付方式彈出視窗 -->
+    <div id="payment-method-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-stone-700 mb-4">新增支付方式</h3>
+            <div class="space-y-4">
+                <input type="text" id="new-payment-name" placeholder="例如：全支付, 街口" class="w-full p-3 input-style">
+                <div id="payment-error" class="text-red-400 text-xs hidden">此支付方式已存在！</div>
+                <div class="flex gap-2">
+                    <button onclick="toggleModal('payment-method-modal')" class="flex-1 py-3 text-stone-400">取消</button>
+                    <button onclick="confirmAddPaymentMethod()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">新增</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 💡 新增的月份選擇彈出視窗 -->
+    <div id="month-picker-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-stone-700 mb-4 text-center">選擇月份</h3>
+            
+            <div class="flex justify-between items-center mb-6 px-4">
+                <button onclick="changePickerYear(-1)" class="p-2 text-stone-400 hover:text-[#b8a390] transition hover:scale-110">&lt;</button>
+                <span id="picker-year-display" class="font-black text-stone-600 text-xl tracking-widest">2026</span>
+                <button onclick="changePickerYear(1)" class="p-2 text-stone-400 hover:text-[#b8a390] transition hover:scale-110">&gt;</button>
+            </div>
+
+            <div class="grid grid-cols-4 gap-3 mb-8" id="picker-month-grid">
+                <!-- Javascript 自動生成 12 個月份按鈕 -->
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="toggleModal('month-picker-modal')" class="flex-1 py-3 text-stone-400">取消</button>
+                <button onclick="confirmMonthSelection()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">確認</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const STORAGE_KEY = 'BUDGET_MASTER_V2';
         
+        // 💡 暫存月份選擇器狀態
+        let tempPickerYear = new Date().getFullYear();
+        let tempPickerMonth = new Date().getMonth() + 1;
+
         window.state = {
             records: [],
             accounts: [],
             fixedExpenses: [],
             tripRecords: [], 
-            settings: { salary: 45000, savingsGoal: 10000, usdRate: 32.5, password: "1234", rates: null },
+            // 💡 預設的系統設定，加入 paymentMethods 管理支付方式
+            settings: { 
+                salary: 45000, 
+                savingsGoal: 10000, 
+                usdRate: 32.5, 
+                password: "1234", 
+                rates: null,
+                paymentMethods: ['現金', 'CUBE', 'LinePay', '銀行轉帳']
+            },
             scriptUrl: ''
         };
 
@@ -392,7 +438,12 @@
             });
             
             const viewMonthEl = document.getElementById('view-month');
-            if(viewMonthEl) viewMonthEl.value = currentMonth;
+            const viewMonthDisplay = document.getElementById('view-month-display');
+            if(viewMonthEl) {
+                viewMonthEl.value = currentMonth;
+                const parts = currentMonth.split('-');
+                if(viewMonthDisplay) viewMonthDisplay.innerText = `${parts[0]} 年 ${parts[1]} 月`;
+            }
 
             loadLocalData();
             fetchLiveRate();
@@ -443,7 +494,10 @@
             if (saved) {
                 const parsed = JSON.parse(saved);
                 window.state = { ...window.state, ...parsed };
+                
+                if (!window.state.settings) window.state.settings = {};
                 if (!window.state.settings.password) window.state.settings.password = "1234";
+                if (!window.state.settings.paymentMethods) window.state.settings.paymentMethods = ['現金', 'CUBE', 'LinePay', '銀行轉帳'];
                 
                 if (document.getElementById('script-url')) document.getElementById('script-url').value = window.state.scriptUrl || '';
                 if (document.getElementById('salary')) document.getElementById('salary').value = window.state.settings.salary || 45000;
@@ -476,6 +530,9 @@
                 const cloud = await res.json();
                 if (cloud) {
                     window.state = { ...window.state, ...cloud };
+                    if (!window.state.settings) window.state.settings = {};
+                    if (!window.state.settings.paymentMethods) window.state.settings.paymentMethods = ['現金', 'CUBE', 'LinePay', '銀行轉帳'];
+
                     if (document.getElementById('salary')) document.getElementById('salary').value = window.state.settings.salary || 45000;
                     if (document.getElementById('savings-goal')) document.getElementById('savings-goal').value = window.state.settings.savingsGoal || 10000;
                     if (document.getElementById('app-password')) document.getElementById('app-password').value = window.state.settings.password || "1234";
@@ -494,6 +551,79 @@
                 const el = document.getElementById('fixed-exp-account');
                 if (el) el.innerHTML = window.state.accounts.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
             }
+        }
+
+        // 💡 新增：月份選擇器相關邏輯
+        function openMonthPickerModal() {
+            const currentVal = document.getElementById('view-month').value;
+            if (currentVal) {
+                const parts = currentVal.split('-');
+                tempPickerYear = parseInt(parts[0]);
+                tempPickerMonth = parseInt(parts[1]);
+            }
+            renderMonthPicker();
+            toggleModal('month-picker-modal');
+        }
+
+        function changePickerYear(offset) {
+            tempPickerYear += offset;
+            renderMonthPicker();
+        }
+
+        function selectPickerMonth(m) {
+            tempPickerMonth = m;
+            renderMonthPicker();
+        }
+
+        function renderMonthPicker() {
+            document.getElementById('picker-year-display').innerText = tempPickerYear;
+            const grid = document.getElementById('picker-month-grid');
+            let html = '';
+            for (let i = 1; i <= 12; i++) {
+                const isSelected = (i === tempPickerMonth);
+                const baseClass = "py-3 rounded-xl text-sm font-bold transition hover:scale-105 active:scale-95";
+                const colorClass = isSelected
+                    ? "milktea-gradient text-white shadow-md shadow-[#dccabd]/50"
+                    : "bg-[#fcfaf7] text-stone-500 border border-stone-100 hover:bg-[#f3ede6] hover:text-[#8c7e6e]";
+                html += `<button onclick="selectPickerMonth(${i})" class="${baseClass} ${colorClass}">${i}月</button>`;
+            }
+            grid.innerHTML = html;
+        }
+
+        function confirmMonthSelection() {
+            const mStr = tempPickerMonth.toString().padStart(2, '0');
+            const newVal = `${tempPickerYear}-${mStr}`;
+            
+            document.getElementById('view-month').value = newVal;
+            document.getElementById('view-month-display').innerText = `${tempPickerYear} 年 ${mStr} 月`;
+            
+            toggleModal('month-picker-modal');
+            updateUI(); // 重新計算與渲染
+        }
+
+        function openPaymentModal() {
+            document.getElementById('new-payment-name').value = '';
+            document.getElementById('payment-error').classList.add('hidden');
+            toggleModal('payment-method-modal');
+        }
+
+        async function confirmAddPaymentMethod() {
+            const inputEl = document.getElementById('new-payment-name');
+            const errorEl = document.getElementById('payment-error');
+            const newMethod = inputEl.value.trim();
+
+            if (!newMethod) return;
+
+            if (window.state.settings.paymentMethods.includes(newMethod)) {
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            window.state.settings.paymentMethods.push(newMethod);
+            saveData();
+            toggleModal('payment-method-modal');
+            
+            await pushAction({ action: 'updateSettings', data: window.state.settings });
         }
 
         async function addRecord(type) {
@@ -586,7 +716,6 @@
             await pushAction({ action: 'deleteRecord', data: { id, type } });
         }
 
-        // 💡 新增：修改金額功能，不須改後端！
         async function editAmount(id, type) {
             const isTrip = type === 'trip';
             const list = isTrip ? window.state.tripRecords : window.state.records;
@@ -606,26 +735,20 @@
                 return;
             }
             
-            if (newAmt === record.amount) return; // 沒變動就直接離開
+            if (newAmt === record.amount) return; 
 
             const oldId = record.id;
-            // 賦予新 ID，並更新金額
             const newRecord = { ...record, id: Date.now(), amount: newAmt };
             
-            // 1. 本地更新：直接在該位置替換掉舊資料，保持排序不變
             list[index] = newRecord;
-            saveData(); // 會自動重新渲染畫面
+            saveData(); 
 
-            // 2. 雲端更新：運用「先新增新紀錄，再刪除舊紀錄」的技巧來觸發後端同步
-            // 這樣您就完全不需要動到 Apps Script 的程式碼了！
             if (window.state.scriptUrl) {
                 try {
-                    // 先送出新增 (這會直接加上一筆新的)
                     await fetch(window.state.scriptUrl, { 
                         method: 'POST', mode: 'no-cors', 
                         body: JSON.stringify({ action: isTrip ? 'addTripRecord' : 'addRecord', data: newRecord }) 
                     });
-                    // 再送出刪除 (這個動作會觸發後端的 syncStateToLogSheet，幫我們把整張表按時間重新洗牌排好！)
                     await fetch(window.state.scriptUrl, { 
                         method: 'POST', mode: 'no-cors', 
                         body: JSON.stringify({ action: 'deleteRecord', data: { id: oldId, type: isTrip ? 'trip' : 'normal' } }) 
@@ -865,6 +988,12 @@
                 if(el) el.innerHTML = accOptions;
             });
 
+            // 💡 更新：動態渲染支付方式選項
+            const paymentMethods = window.state.settings.paymentMethods || ['現金', 'CUBE', 'LinePay', '銀行轉帳'];
+            const paymentOptions = paymentMethods.map(p => `<option value="${p}">${p}</option>`).join('');
+            const expPaymentEl = document.getElementById('exp-payment');
+            if(expPaymentEl) expPaymentEl.innerHTML = paymentOptions;
+
             const filteredRecords = window.state.records.filter(r => r.date.startsWith(viewMonth));
             const filteredTrips = window.state.tripRecords.filter(t => t.date.startsWith(viewMonth));
 
@@ -879,7 +1008,6 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="text-xs font-bold ${r.type === 'income' ? 'text-green-600' : 'text-stone-500'} mr-1">${r.type === 'income' ? '+' : '-'}${curMap[r.accountName] === 'USD' ? '$' : ''}${r.amount.toLocaleString()}</span>
-                        <!-- 💡 新增的編輯按鈕 -->
                         <button onclick="editAmount(${r.id}, '${r.type}')" class="text-stone-400 hover:text-[#b8a390] text-xs font-bold transition">✎</button>
                         <button onclick="deleteRecord(${r.id})" class="text-stone-300 hover:text-red-400 text-xs transition">✕</button>
                     </div>
@@ -903,7 +1031,6 @@
                         </div>
                         <div class="flex items-center gap-2">
                             <span class="text-xs font-bold ${r.adjType === 'plus' ? 'text-green-600' : 'text-stone-500'} mr-1">${r.adjType === 'plus' ? '+' : '-'}${curMap[r.accountName] === 'USD' ? '$' : ''}${r.amount.toLocaleString()}</span>
-                            <!-- 💡 新增的編輯按鈕 -->
                             <button onclick="editAmount(${r.id}, '${r.type}')" class="text-stone-400 hover:text-[#b8a390] text-xs font-bold transition">✎</button>
                             <button onclick="deleteRecord(${r.id})" class="text-stone-300 hover:text-red-400 text-xs transition">✕</button>
                         </div>
@@ -930,7 +1057,6 @@
 
                     return `
                     <div class="bg-white p-4 rounded-2xl border border-[#e5ddd3] relative group shadow-sm">
-                        <!-- 💡 新增的編輯按鈕，懸浮時與刪除按鈕一起出現 -->
                         <div class="absolute top-2 right-2 flex gap-3 opacity-0 group-hover:opacity-100 transition">
                             <button onclick="editAmount(${t.id}, 'trip')" class="text-stone-400 hover:text-[#b8a390] text-xs font-bold">✎</button>
                             <button onclick="deleteRecord(${t.id}, 'trip')" class="text-stone-300 hover:text-red-400 text-xs">✕</button>
@@ -1026,7 +1152,7 @@
         }
         window.switchTab = switchTab;
         window.deleteRecord = deleteRecord;
-        window.editAmount = editAmount; // 💡 註冊編輯函數
+        window.editAmount = editAmount; 
         window.toggleModal = toggleModal;
         window.addRecord = addRecord;
         window.addTripRecord = addTripRecord;
@@ -1035,6 +1161,13 @@
         window.deleteAccountCloud = deleteAccountCloud;
         window.addFixedExpense = addFixedExpense;
         window.deleteFixedExpense = deleteFixedExpense;
+        window.openPaymentModal = openPaymentModal; 
+        window.confirmAddPaymentMethod = confirmAddPaymentMethod; 
+        // 💡 註冊月份選擇器功能
+        window.openMonthPickerModal = openMonthPickerModal;
+        window.changePickerYear = changePickerYear;
+        window.selectPickerMonth = selectPickerMonth;
+        window.confirmMonthSelection = confirmMonthSelection;
         window.updateGlobalSettings = updateGlobalSettings;
         window.syncWithSheets = syncWithSheets;
         window.togglePasswordVisibility = togglePasswordVisibility;
