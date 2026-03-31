@@ -353,6 +353,36 @@
             </div>
         </div>
     </div>
+    
+    <!-- 💡 新增的「編輯帳戶」彈出視窗 -->
+    <div id="edit-account-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-stone-700 mb-4">編輯帳戶</h3>
+            <p class="text-[10px] text-stone-400 mb-4">💡 這裡修改的是「初始餘額」，若想調整目前的最新結餘，建議至「調整」分頁新增一筆紀錄喔！</p>
+            <div class="space-y-4">
+                <div class="flex flex-col">
+                    <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">帳戶名稱 (無法修改)</label>
+                    <input type="text" id="edit-acc-name" class="w-full p-3 input-style bg-stone-100 text-stone-500 cursor-not-allowed" readonly>
+                </div>
+                <div class="flex flex-col">
+                    <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">初始餘額</label>
+                    <input type="number" id="edit-acc-balance" class="w-full p-3 input-style font-bold text-stone-700">
+                </div>
+                <div class="flex flex-col">
+                    <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">幣別</label>
+                    <select id="edit-acc-currency" class="p-3 input-style">
+                        <option value="TWD">TWD</option>
+                        <option value="USD">USD</option>
+                    </select>
+                </div>
+                
+                <div class="flex gap-2 mt-4">
+                    <button onclick="toggleModal('edit-account-modal')" class="flex-1 py-3 text-stone-400 transition hover:text-[#b8a390]">取消</button>
+                    <button onclick="saveEditAccount()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold transition hover:brightness-105">儲存修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div id="fixed-expense-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
@@ -839,7 +869,7 @@
             await pushAction({ action: 'deleteRecord', data: { id, type } });
         }
 
-        // 帳戶與設定功能
+        // 💡 帳戶與設定功能 (升級：支援編輯帳戶)
         async function addAccountCloud() {
             const nameEl = document.getElementById('new-acc-name');
             const balEl = document.getElementById('new-acc-balance');
@@ -860,13 +890,42 @@
             await pushAction({ action: 'updateAccounts', data: window.state.accounts });
         }
 
+        function openEditAccountModal(name) {
+            const acc = window.state.accounts.find(a => a.name === name);
+            if(!acc) return;
+            
+            document.getElementById('edit-acc-name').value = acc.name;
+            document.getElementById('edit-acc-balance').value = acc.balance;
+            document.getElementById('edit-acc-currency').value = acc.currency;
+            
+            toggleModal('edit-account-modal');
+        }
+
+        async function saveEditAccount() {
+            const name = document.getElementById('edit-acc-name').value;
+            const balance = parseFloat(document.getElementById('edit-acc-balance').value) || 0;
+            const currency = document.getElementById('edit-acc-currency').value;
+
+            const idx = window.state.accounts.findIndex(a => a.name === name);
+            if(idx > -1) {
+                window.state.accounts[idx] = { name, balance, currency };
+                saveData(); // 會自動重新計算並渲染首頁
+                renderAccountList(); // 更新背景清單
+                toggleModal('edit-account-modal');
+                await pushAction({ action: 'updateAccounts', data: window.state.accounts });
+            }
+        }
+
         function renderAccountList() {
             const listEl = document.getElementById('modal-account-list');
             if (listEl) {
                 listEl.innerHTML = window.state.accounts.map(a => `
-                    <div class="flex justify-between items-center bg-stone-50 p-2 rounded-lg text-[10px]">
-                        <span class="font-bold">${a.name} (${a.currency})</span>
-                        <button onclick="deleteAccountCloud('${a.name}')" class="text-red-400">刪除</button>
+                    <div class="flex justify-between items-center bg-stone-50 p-2 rounded-lg text-[10px] mb-2 border border-stone-100">
+                        <span class="font-bold text-stone-600">${a.name} (${a.currency})</span>
+                        <div class="flex items-center gap-3">
+                            <button onclick="openEditAccountModal('${a.name}')" class="text-stone-400 hover:text-[#b8a390] font-bold transition">編輯</button>
+                            <button onclick="deleteAccountCloud('${a.name}')" class="text-stone-300 hover:text-red-400 font-bold transition">✕</button>
+                        </div>
                     </div>
                 `).join('');
             }
@@ -1244,6 +1303,8 @@
         window.addAdjustmentRecord = addAdjustmentRecord;
         window.addAccountCloud = addAccountCloud;
         window.deleteAccountCloud = deleteAccountCloud;
+        window.openEditAccountModal = openEditAccountModal; // 💡 註冊編輯帳戶視窗功能
+        window.saveEditAccount = saveEditAccount; // 💡 註冊儲存帳戶修改功能
         window.addFixedExpense = addFixedExpense;
         window.deleteFixedExpense = deleteFixedExpense;
         window.openPaymentModal = openPaymentModal; 
