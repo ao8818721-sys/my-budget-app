@@ -345,7 +345,11 @@
                         <option value="USD">USD</option>
                     </select>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2 px-1">
+                    <input type="checkbox" id="new-acc-exclude" class="rounded text-[#b8a390] focus:ring-[#b8a390]">
+                    <label for="new-acc-exclude" class="text-[10px] text-stone-500 font-bold">不計入總資產 (例如：共同基金、代管帳戶)</label>
+                </div>
+                <div class="flex gap-2 pt-2">
                     <button onclick="toggleModal('account-modal')" class="flex-1 py-3 text-stone-400">取消</button>
                     <button onclick="addAccountCloud()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold">保存</button>
                 </div>
@@ -374,6 +378,10 @@
                         <option value="TWD">TWD</option>
                         <option value="USD">USD</option>
                     </select>
+                </div>
+                <div class="flex items-center gap-2 px-1">
+                    <input type="checkbox" id="edit-acc-exclude" class="rounded text-[#b8a390] focus:ring-[#b8a390]">
+                    <label for="edit-acc-exclude" class="text-[10px] text-stone-500 font-bold">不計入總資產</label>
                 </div>
                 
                 <div class="flex gap-2 mt-4">
@@ -869,22 +877,29 @@
             await pushAction({ action: 'deleteRecord', data: { id, type } });
         }
 
-        // 💡 帳戶與設定功能 (升級：支援編輯帳戶)
+        // 💡 帳戶與設定功能 (升級：支援編輯帳戶與不計入總資產)
         async function addAccountCloud() {
             const nameEl = document.getElementById('new-acc-name');
             const balEl = document.getElementById('new-acc-balance');
             const curEl = document.getElementById('new-acc-currency');
+            const excEl = document.getElementById('new-acc-exclude');
             if (!nameEl || !balEl || !curEl) return;
 
             const name = nameEl.value.trim();
             const balance = parseFloat(balEl.value) || 0;
             const currency = curEl.value;
+            const excludeFromTotal = excEl ? excEl.checked : false;
 
             if (!name) return;
             const idx = window.state.accounts.findIndex(a => a.name === name);
-            if (idx > -1) window.state.accounts[idx] = { name, balance, currency };
-            else window.state.accounts.push({ name, balance, currency });
+            if (idx > -1) window.state.accounts[idx] = { name, balance, currency, excludeFromTotal };
+            else window.state.accounts.push({ name, balance, currency, excludeFromTotal });
             
+            // 清除輸入框
+            nameEl.value = '';
+            balEl.value = '';
+            if(excEl) excEl.checked = false;
+
             toggleModal('account-modal');
             saveData();
             await pushAction({ action: 'updateAccounts', data: window.state.accounts });
@@ -897,6 +912,7 @@
             document.getElementById('edit-acc-name').value = acc.name;
             document.getElementById('edit-acc-balance').value = acc.balance;
             document.getElementById('edit-acc-currency').value = acc.currency;
+            document.getElementById('edit-acc-exclude').checked = !!acc.excludeFromTotal;
             
             toggleModal('edit-account-modal');
         }
@@ -905,10 +921,11 @@
             const name = document.getElementById('edit-acc-name').value;
             const balance = parseFloat(document.getElementById('edit-acc-balance').value) || 0;
             const currency = document.getElementById('edit-acc-currency').value;
+            const excludeFromTotal = document.getElementById('edit-acc-exclude').checked;
 
             const idx = window.state.accounts.findIndex(a => a.name === name);
             if(idx > -1) {
-                window.state.accounts[idx] = { name, balance, currency };
+                window.state.accounts[idx] = { name, balance, currency, excludeFromTotal };
                 saveData(); // 會自動重新計算並渲染首頁
                 renderAccountList(); // 更新背景清單
                 toggleModal('edit-account-modal');
@@ -921,7 +938,10 @@
             if (listEl) {
                 listEl.innerHTML = window.state.accounts.map(a => `
                     <div class="flex justify-between items-center bg-stone-50 p-2 rounded-lg text-[10px] mb-2 border border-stone-100">
-                        <span class="font-bold text-stone-600">${a.name} (${a.currency})</span>
+                        <span class="font-bold text-stone-600 flex items-center gap-1">
+                            ${a.name} (${a.currency}) 
+                            ${a.excludeFromTotal ? '<span class="text-[8px] font-normal text-stone-400 bg-stone-200 px-1 rounded">不計入</span>' : ''}
+                        </span>
                         <div class="flex items-center gap-3">
                             <button onclick="openEditAccountModal('${a.name}')" class="text-stone-400 hover:text-[#b8a390] font-bold transition">編輯</button>
                             <button onclick="deleteAccountCloud('${a.name}')" class="text-stone-300 hover:text-red-400 font-bold transition">✕</button>
@@ -1058,11 +1078,17 @@
                 accountsContainer.innerHTML = window.state.accounts.map(acc => {
                     const amt = balances[acc.name] || 0;
                     const twd = acc.currency === 'USD' ? amt * rate : amt;
-                    totalAssetsTWD += twd;
+                    
+                    // 💡 如果沒有勾選「不計入總資產」，才算進總資產裡
+                    if (!acc.excludeFromTotal) {
+                        totalAssetsTWD += twd;
+                    }
+
                     return `
-                        <div class="bg-stone-50 p-4 rounded-xl border border-stone-100">
+                        <div class="bg-stone-50 p-4 rounded-xl border border-stone-100 relative">
+                            ${acc.excludeFromTotal ? `<span class="absolute top-3 right-3 text-[8px] bg-stone-200 text-stone-400 px-1.5 py-0.5 rounded shadow-sm">不計入</span>` : ''}
                             <div class="text-[9px] text-stone-400 font-bold mb-1 uppercase">${acc.name}</div>
-                            <div class="font-bold text-stone-600">${acc.currency === 'USD' ? '$' : ''}${Math.round(amt).toLocaleString()}</div>
+                            <div class="font-bold ${acc.excludeFromTotal ? 'text-stone-400' : 'text-stone-600'}">${acc.currency === 'USD' ? '$' : ''}${Math.round(amt).toLocaleString()}</div>
                         </div>
                     `;
                 }).join('');
