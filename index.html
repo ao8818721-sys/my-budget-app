@@ -65,6 +65,7 @@
     </style>
 </head>
 <body class="p-4 md:p-8">
+    <!-- 密碼鎖定畫面 -->
     <div id="auth-screen" class="fixed inset-0 z-[100] bg-[#fcfaf7] flex flex-col items-center justify-center p-6 text-center">
         <div class="mb-8">
             <div class="w-16 h-16 milktea-gradient rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -82,6 +83,7 @@
         </div>
     </div>
 
+    <!-- 主程式內容 -->
     <div id="main-app" class="max-w-6xl mx-auto locked-content">
         <div class="mb-6">
             <h1 class="text-3xl font-black tracking-widest text-stone-700">理財記帳簿</h1>
@@ -90,7 +92,8 @@
 
         <header class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
             <div class="lg:col-span-8 flex items-center">
-                </div>
+                <!-- 歡迎詞已移除 -->
+            </div>
             
             <div class="lg:col-span-4 flex flex-col gap-3 bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
                 <div class="flex flex-col gap-1">
@@ -139,7 +142,7 @@
 
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-black text-stone-700 tracking-widest border-l-4 border-[#b8a390] pl-3">月度收支與預算</h2>
-                    <!-- 💡 更新：改成我們自訂的按鈕，並隱藏原本的 input -->
+                    <!-- 自訂月份選擇按鈕 -->
                     <input type="hidden" id="view-month">
                     <button onclick="openMonthPickerModal()" id="view-month-btn" class="p-2 px-4 input-style text-sm font-bold text-stone-600 shadow-sm flex items-center gap-2 hover:bg-white transition">
                         <span id="view-month-display">載入中...</span>
@@ -167,7 +170,8 @@
                             <button onclick="toggleModal('fixed-expense-modal')" class="text-[10px] text-stone-400 hover:text-[#b8a390]">+ 新增</button>
                         </div>
                         <div id="fixed-expenses-list" class="space-y-2 max-h-32 overflow-y-auto pr-1">
-                            </div>
+                            <!-- 固定支出項目會顯示在這裡 -->
+                        </div>
                     </div>
                 </div>
 
@@ -328,6 +332,7 @@
         </div>
     </div>
 
+    <!-- Modals -->
     <div id="account-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
             <h3 class="text-lg font-bold text-stone-700 mb-4">帳戶管理</h3>
@@ -366,7 +371,7 @@
         </div>
     </div>
 
-    <!-- 💡 新增的支付方式彈出視窗 -->
+    <!-- 💡 支付方式彈出視窗 -->
     <div id="payment-method-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
             <h3 class="text-lg font-bold text-stone-700 mb-4">新增支付方式</h3>
@@ -381,7 +386,7 @@
         </div>
     </div>
 
-    <!-- 💡 新增的月份選擇彈出視窗 -->
+    <!-- 💡 月份選擇彈出視窗 -->
     <div id="month-picker-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
             <h3 class="text-lg font-bold text-stone-700 mb-4 text-center">選擇月份</h3>
@@ -403,10 +408,38 @@
         </div>
     </div>
 
+    <!-- 💡 編輯紀錄彈出視窗 -->
+    <div id="edit-record-modal" class="fixed inset-0 modal-bg flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-stone-700 mb-4">編輯紀錄</h3>
+            <div class="space-y-4">
+                <div class="flex flex-col">
+                    <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">修改金額</label>
+                    <input type="number" id="edit-amount" class="w-full p-3 input-style font-bold text-stone-700">
+                </div>
+                <div class="flex flex-col">
+                    <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">帳戶 (銀行)</label>
+                    <select id="edit-account" class="w-full p-3 input-style text-[11px]"></select>
+                </div>
+                <div class="flex flex-col" id="edit-payment-container">
+                    <label class="text-[9px] text-stone-400 mb-1 ml-1 font-bold">支付方式</label>
+                    <select id="edit-payment" class="w-full p-3 input-style text-[11px]"></select>
+                </div>
+                <input type="hidden" id="edit-record-id">
+                <input type="hidden" id="edit-record-type">
+                
+                <div class="flex gap-2 mt-4">
+                    <button onclick="toggleModal('edit-record-modal')" class="flex-1 py-3 text-stone-400 transition hover:text-[#b8a390]">取消</button>
+                    <button onclick="saveEditRecord()" class="flex-1 milktea-gradient text-white py-3 rounded-xl font-bold transition hover:brightness-105">儲存修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const STORAGE_KEY = 'BUDGET_MASTER_V2';
         
-        // 💡 暫存月份選擇器狀態
+        // 月份選擇器暫存狀態
         let tempPickerYear = new Date().getFullYear();
         let tempPickerMonth = new Date().getMonth() + 1;
 
@@ -415,7 +448,6 @@
             accounts: [],
             fixedExpenses: [],
             tripRecords: [], 
-            // 💡 預設的系統設定，加入 paymentMethods 管理支付方式
             settings: { 
                 salary: 45000, 
                 savingsGoal: 10000, 
@@ -475,7 +507,6 @@
                 document.getElementById('auth-error').classList.remove('hidden');
             }
         }
-        window.checkPassword = checkPassword;
 
         function togglePasswordVisibility() {
             const pwdInput = document.getElementById('app-password');
@@ -553,7 +584,7 @@
             }
         }
 
-        // 💡 新增：月份選擇器相關邏輯
+        // 月份選擇器功能
         function openMonthPickerModal() {
             const currentVal = document.getElementById('view-month').value;
             if (currentVal) {
@@ -601,6 +632,7 @@
             updateUI(); // 重新計算與渲染
         }
 
+        // 支付方式功能
         function openPaymentModal() {
             document.getElementById('new-payment-name').value = '';
             document.getElementById('payment-error').classList.add('hidden');
@@ -626,6 +658,97 @@
             await pushAction({ action: 'updateSettings', data: window.state.settings });
         }
 
+        // 編輯紀錄功能
+        function openEditModal(id, type) {
+            const isTrip = type === 'trip';
+            const list = isTrip ? window.state.tripRecords : window.state.records;
+            const record = list.find(r => r.id == id);
+            if (!record) return;
+
+            // 載入當前帳戶選單
+            const accOptions = window.state.accounts.map(a => `<option value="${a.name}">${a.name} (${a.currency})</option>`).join('');
+            document.getElementById('edit-account').innerHTML = accOptions;
+            document.getElementById('edit-account').value = record.accountName;
+
+            // 判斷是否需要顯示「支付方式」(只有普通支出才有)
+            const paymentContainer = document.getElementById('edit-payment-container');
+            if (type === 'expense') {
+                const paymentMethods = window.state.settings.paymentMethods || ['現金', 'CUBE', 'LinePay', '銀行轉帳'];
+                document.getElementById('edit-payment').innerHTML = paymentMethods.map(p => `<option value="${p}">${p}</option>`).join('');
+                document.getElementById('edit-payment').value = record.paymentMethod || paymentMethods[0];
+                paymentContainer.classList.remove('hidden');
+            } else {
+                paymentContainer.classList.add('hidden');
+            }
+
+            // 填入金額與隱藏資訊
+            document.getElementById('edit-amount').value = record.amount;
+            document.getElementById('edit-record-id').value = id;
+            document.getElementById('edit-record-type').value = type;
+
+            toggleModal('edit-record-modal');
+        }
+
+        async function saveEditRecord() {
+            const id = document.getElementById('edit-record-id').value;
+            const type = document.getElementById('edit-record-type').value;
+            const newAmt = parseFloat(document.getElementById('edit-amount').value);
+            const newAcc = document.getElementById('edit-account').value;
+            const newPayment = document.getElementById('edit-payment').value;
+
+            if (isNaN(newAmt) || newAmt <= 0) {
+                alert('請輸入有效的金額 (須大於 0)！');
+                return;
+            }
+
+            const isTrip = type === 'trip';
+            const list = isTrip ? window.state.tripRecords : window.state.records;
+            const index = list.findIndex(r => r.id == id);
+            if (index === -1) return;
+
+            const oldRecord = list[index];
+
+            // 檢查是否真的有修改內容
+            let isChanged = false;
+            if (oldRecord.amount !== newAmt) isChanged = true;
+            if (oldRecord.accountName !== newAcc) isChanged = true;
+            if (type === 'expense' && oldRecord.paymentMethod !== newPayment) isChanged = true;
+
+            if (!isChanged) {
+                toggleModal('edit-record-modal');
+                return; // 沒有變更就直接關閉
+            }
+
+            const oldId = oldRecord.id;
+            // 賦予新 ID，並更新資料
+            const newRecord = { ...oldRecord, id: Date.now(), amount: newAmt, accountName: newAcc };
+            if (type === 'expense') {
+                newRecord.paymentMethod = newPayment;
+            }
+            
+            // 1. 本地更新
+            list[index] = newRecord;
+            saveData(); // 會自動重新渲染畫面
+            toggleModal('edit-record-modal');
+
+            // 2. 雲端更新 (先新增、後刪除舊紀錄)
+            if (window.state.scriptUrl) {
+                try {
+                    await fetch(window.state.scriptUrl, { 
+                        method: 'POST', mode: 'no-cors', 
+                        body: JSON.stringify({ action: isTrip ? 'addTripRecord' : 'addRecord', data: newRecord }) 
+                    });
+                    await fetch(window.state.scriptUrl, { 
+                        method: 'POST', mode: 'no-cors', 
+                        body: JSON.stringify({ action: 'deleteRecord', data: { id: oldId, type: isTrip ? 'trip' : 'normal' } }) 
+                    });
+                } catch (e) {
+                    console.error("編輯同步失敗", e);
+                }
+            }
+        }
+
+        // 新增紀錄功能
         async function addRecord(type) {
             const p = type === 'expense' ? 'exp' : 'inc';
             const nameInput = document.getElementById(`${p}-name`);
@@ -716,49 +839,7 @@
             await pushAction({ action: 'deleteRecord', data: { id, type } });
         }
 
-        async function editAmount(id, type) {
-            const isTrip = type === 'trip';
-            const list = isTrip ? window.state.tripRecords : window.state.records;
-            const index = list.findIndex(r => r.id == id);
-            if (index === -1) return;
-
-            const record = list[index];
-            const itemName = isTrip ? record.tripName : record.name;
-            
-            const newAmtStr = prompt(`請輸入「${itemName}」的新金額：\n(目前金額為 ${record.amount})`, record.amount);
-            
-            if (newAmtStr === null || newAmtStr.trim() === '') return;
-            
-            const newAmt = parseFloat(newAmtStr);
-            if (isNaN(newAmt) || newAmt <= 0) {
-                alert('請輸入有效的金額 (須大於 0)！');
-                return;
-            }
-            
-            if (newAmt === record.amount) return; 
-
-            const oldId = record.id;
-            const newRecord = { ...record, id: Date.now(), amount: newAmt };
-            
-            list[index] = newRecord;
-            saveData(); 
-
-            if (window.state.scriptUrl) {
-                try {
-                    await fetch(window.state.scriptUrl, { 
-                        method: 'POST', mode: 'no-cors', 
-                        body: JSON.stringify({ action: isTrip ? 'addTripRecord' : 'addRecord', data: newRecord }) 
-                    });
-                    await fetch(window.state.scriptUrl, { 
-                        method: 'POST', mode: 'no-cors', 
-                        body: JSON.stringify({ action: 'deleteRecord', data: { id: oldId, type: isTrip ? 'trip' : 'normal' } }) 
-                    });
-                } catch (e) {
-                    console.error("編輯同步失敗", e);
-                }
-            }
-        }
-
+        // 帳戶與設定功能
         async function addAccountCloud() {
             const nameEl = document.getElementById('new-acc-name');
             const balEl = document.getElementById('new-acc-balance');
@@ -988,7 +1069,7 @@
                 if(el) el.innerHTML = accOptions;
             });
 
-            // 💡 更新：動態渲染支付方式選項
+            // 渲染支付方式選項
             const paymentMethods = window.state.settings.paymentMethods || ['現金', 'CUBE', 'LinePay', '銀行轉帳'];
             const paymentOptions = paymentMethods.map(p => `<option value="${p}">${p}</option>`).join('');
             const expPaymentEl = document.getElementById('exp-payment');
@@ -1008,7 +1089,7 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="text-xs font-bold ${r.type === 'income' ? 'text-green-600' : 'text-stone-500'} mr-1">${r.type === 'income' ? '+' : '-'}${curMap[r.accountName] === 'USD' ? '$' : ''}${r.amount.toLocaleString()}</span>
-                        <button onclick="editAmount(${r.id}, '${r.type}')" class="text-stone-400 hover:text-[#b8a390] text-xs font-bold transition">✎</button>
+                        <button onclick="openEditModal(${r.id}, '${r.type}')" class="text-stone-400 hover:text-[#b8a390] text-xs font-bold transition">✎</button>
                         <button onclick="deleteRecord(${r.id})" class="text-stone-300 hover:text-red-400 text-xs transition">✕</button>
                     </div>
                 </div>
@@ -1031,7 +1112,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                             <span class="text-xs font-bold ${r.adjType === 'plus' ? 'text-green-600' : 'text-stone-500'} mr-1">${r.adjType === 'plus' ? '+' : '-'}${curMap[r.accountName] === 'USD' ? '$' : ''}${r.amount.toLocaleString()}</span>
-                            <button onclick="editAmount(${r.id}, '${r.type}')" class="text-stone-400 hover:text-[#b8a390] text-xs font-bold transition">✎</button>
+                            <button onclick="openEditModal(${r.id}, '${r.type}')" class="text-stone-400 hover:text-[#b8a390] text-xs font-bold transition">✎</button>
                             <button onclick="deleteRecord(${r.id})" class="text-stone-300 hover:text-red-400 text-xs transition">✕</button>
                         </div>
                     </div>
@@ -1058,7 +1139,7 @@
                     return `
                     <div class="bg-white p-4 rounded-2xl border border-[#e5ddd3] relative group shadow-sm">
                         <div class="absolute top-2 right-2 flex gap-3 opacity-0 group-hover:opacity-100 transition">
-                            <button onclick="editAmount(${t.id}, 'trip')" class="text-stone-400 hover:text-[#b8a390] text-xs font-bold">✎</button>
+                            <button onclick="openEditModal(${t.id}, 'trip')" class="text-stone-400 hover:text-[#b8a390] text-xs font-bold">✎</button>
                             <button onclick="deleteRecord(${t.id}, 'trip')" class="text-stone-300 hover:text-red-400 text-xs">✕</button>
                         </div>
                         <div class="text-[10px] font-bold text-stone-600 mb-1 pr-12">${t.tripName} (${t.category})</div>
@@ -1150,9 +1231,13 @@
                 }
             });
         }
+
+        // 綁定全域變數
+        window.checkPassword = checkPassword;
         window.switchTab = switchTab;
         window.deleteRecord = deleteRecord;
-        window.editAmount = editAmount; 
+        window.openEditModal = openEditModal; 
+        window.saveEditRecord = saveEditRecord; 
         window.toggleModal = toggleModal;
         window.addRecord = addRecord;
         window.addTripRecord = addTripRecord;
@@ -1163,7 +1248,6 @@
         window.deleteFixedExpense = deleteFixedExpense;
         window.openPaymentModal = openPaymentModal; 
         window.confirmAddPaymentMethod = confirmAddPaymentMethod; 
-        // 💡 註冊月份選擇器功能
         window.openMonthPickerModal = openMonthPickerModal;
         window.changePickerYear = changePickerYear;
         window.selectPickerMonth = selectPickerMonth;
